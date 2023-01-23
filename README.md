@@ -1,6 +1,8 @@
 # projectionpasta
 A python script for reprojecting raster maps
+
 Created 2023 by Amadea de Silva and Nikolai Hersfeldt
+
 As part of the [Worldbuilding Pasta](https://worldbuildingpasta.blogspot.com/) project
 
 Hardly the most detailed or user-friendly map projection software out there, but comes with a couple key advantages:
