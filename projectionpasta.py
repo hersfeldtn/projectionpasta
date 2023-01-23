@@ -643,7 +643,7 @@ def Find_index(x1, y1, coords, pos, lon_in, lat_in, rot_in, ex_in, lon_out, lat_
 #Main function
 
 def Main(file_in, file_out, proj_in=0, proj_out=0, lon_in=0, lat_in=0, rot_in=0, lon_out=0, lat_out=0, rot_out=0,
-         tol=1e-6, imax=10, hem_in=0, hem_out=0, trunc=1):
+         tol=1e-6, imax=20, hem_in=0, hem_out=0, trunc=1):
     coords = coordsl[proj_out]
     pos = posl[proj_in]
     if trunc == 1:
@@ -733,7 +733,7 @@ if __name__ == "__main__":
     print('''
 Projection Pasta
 For Reprojection of maps between arbitrary aspects
-Made 2022 by Amadea de Silva and Nikolai Hersfeldt
+Made 2023 by Amadea de Silva and Nikolai Hersfeldt
 
 Projection Options and Codes (with profile):
   0: Equirectangular/Plate Caree (2:1 rectangle)
