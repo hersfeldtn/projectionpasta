@@ -428,6 +428,26 @@ Mill_pres = Def_pres
 Mill_typ = Def_typ
 Mill_rat = ma.pi/(5/4*ma.asinh(ma.tan(ma.pi*2/5)))
 
+#List of all currently implemented projections; finding their index in this list will give you the proper index to use for running the functions
+proj_list = [
+    'Equirectangular',
+    'Sinusoidal',
+    'Mollweide',
+    'Hammer',
+    'Aitoff',
+    'Winkel Tripel',
+    'Kavrayskiy VII',
+    'Wagner VI',
+    'Ortelius Oval',
+    'Azimuthal Equidistant',
+    'Orthographic',
+    'Stereographic',
+    'Mercator',
+    'Gall Stereographic',
+    'Miller Cylindrical'
+    ]
+    
+
 #Lists referring to the functions in same order for easy reference
 #Nicolosi and Lambert still buggy
 coordsl = [
