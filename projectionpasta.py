@@ -26,24 +26,28 @@ def To_pol(lon,lat):    #Converts from lon,lat to polar around equator
     th = np.arctan2(np.sin(lon)*np.cos(lat),np.sin(lat))
     return rh,th
 
-def der(lon,lat,t,f):   #Approximate partial derivatives by the secant method
-    x1,y1 = f(lon,lat+t,t)
-    x2,y2 = f(lon,lat-t,t)
-    x3,y3 = f(lon+t,lat,t)
-    x4,y4 = f(lon-t,lat,t)
+def der(lon,lat,t,f,ex):   #Approximate partial derivatives by the secant method
+    x1,y1 = f(lon,lat+t,ex)
+    x2,y2 = f(lon,lat-t,ex)
+    x3,y3 = f(lon+t,lat,ex)
+    x4,y4 = f(lon-t,lat,ex)
     dxla = (x1-x2)/(2*t)
     dyla = (y1-y2)/(2*t)
     dxlo = (x3-x4)/(2*t)
     dylo = (y3-y4)/(2*t)
     return dxla,dxlo,dyla,dylo
-def Inv_coords(x,y,t,imax,f,f1,vis,ex): #General iterative inverse function from Bildirici 2016: https://doi.org/10.1080/15230406.2016.1200492
+def Inv_coords(x,y,t,imax,f,f1,vis,ex=-1,ex1=-1): #General iterative inverse function from Bildirici 2016: https://doi.org/10.1080/15230406.2016.1200492
     print("  (using iterative method, may take a bit)")
-    lon,lat = f1(x,y,ex)
+    if ex == -1:
+        ex = t
+    if ex1 == -1:
+        ex1 = ex
+    lon,lat = f1(x,y,ex1)
     vis1 = vis(x,y,ex)
     i=1
     while True:
-        x1,y1 = f(lon,lat,t)
-        dxla,dxlo,dyla,dylo = der(lon,lat,t,f)
+        x1,y1 = f(lon,lat,ex)
+        dxla,dxlo,dyla,dylo = der(lon,lat,t,f,ex)
         div = dxla*dylo - dyla*dxlo
         divz=np.where(div!=0,True,False)
         div1=np.where(divz,div,1)
@@ -127,7 +131,7 @@ def Hemonly_typ(tol,imax,hem):
     return hem
 def Iter_typ(tol,imax,hem):
     return (tol,imax)
-def HemfullIter_typ(tol,imax,hem):
+def HemonlyIter_typ(tol,imax,hem):
     return (tol,imax,hem)
     
 
@@ -203,7 +207,7 @@ Hammer_rat = 2
 def Ait_guess(x,y,ex):  #Special routine for Ait_coords initial guess
     return np.where(Circ_vis(x,y,ex),Hammer_coords(x,y,ex),Wag_coords(x,y,ex))
 def Ait_coords(x,y,ex):
-    return Inv_coords(x,y,ex[0],ex[1],Ait_pos,Ait_guess,Ait_vis,0)
+    return Inv_coords(x,y,ex[0],ex[1],Ait_pos,Ait_guess,Ait_vis)
 def Ait_pos(lon,lat,ex):
     al = ma.pi/2*np.sinc(np.arccos(np.cos(lat)*np.cos(lon/2))/ma.pi)
     x = np.cos(lat)*np.sin(lon/2)/al
@@ -215,7 +219,7 @@ Ait_typ = Iter_typ
 Ait_rat = 2
 
 def Wink_coords(x,y,ex):
-    return Inv_coords(x,y,ex[0],ex[1],Wink_pos,Wag_coords,Wink_vis,0)
+    return Inv_coords(x,y,ex[0],ex[1],Wink_pos,Wag_coords,Wink_vis)
 def Wink_pos(lon,lat,ex):
     al = np.arccos(np.cos(lat)*np.cos(lon/2))/ma.pi
     x = (lon/ma.pi + np.cos(lat)*np.sin(lon/2) / np.sinc(al))/(1+ma.pi/2)
@@ -252,7 +256,7 @@ Kav_typ = Wag_typ
 Kav_rat = ma.sqrt(3)
 
 def Ort_coords(x,y,ex):
-    lon1,lat1 = Inv_coords(x,y,ex[0],ex[1],Ort_pos,Hammer_coords,Circ_vis,0)
+    lon1,lat1 = Inv_coords(x,y,ex[0],ex[1],Ort_pos,Hammer_coords,Circ_vis)
     lat = y*ma.pi/2
     lon2 = np.abs(x)*ma.pi + ma.pi/2 - np.sqrt(ma.pi**2/4 - lat**2)
     lon2 = np.where(x>0, lon2, -lon2)
@@ -274,39 +278,87 @@ Ort_typ = Iter_typ
 Ort_rat = 2
 
 def Nic_coords1(x,y,ex):
-    return Inv_coords(x,y,ex[0],ex[1],Nic_pos,Azim_coords,Nic_vis,ex[2])
+    return Inv_coords(x,y,ex[0],ex[1],Nic_pos,Azim_coords,Nic_vis,ex,ex[2])
 def Nic_pos1(lon,lat,ex):
+    R = 2 / ma.pi
     lat0 = np.where(lat == 0, True, False)
     lon0 = np.where(lon == 0, True, False)
     latmax = np.where(np.abs(lat) == ma.pi/2, True, False)
     lonmax = np.where(np.abs(lon) == ma.pi/2, True, False)
-    lat1 = np.where(lat0 | latmax, lat+1e-4, lat)
-    lon1 = np.where(lon0 | latmax, lon+1e-4, lon)
+    lat1 = np.where(lat0 | latmax, lat+1e-8, lat)
+    lon1 = np.where(lon0 | lonmax, lon+1e-8, lon)
     sinla = np.sin(lat1)
     b = ma.pi/(2*lon1) - 2*lon1/ma.pi
     c = 2*lat1/ma.pi
     d = (1-c**2) / (sinla - c)
-    M = (b*sinla/d - b/2) / (1 + b**2/d**2)
-    N = (d**2*sinla/b**2 + d/2) / (1 + d**2/b**2)
-    x1 = np.sqrt(M**2 + np.cos(lat1)**2 / (1 + b**2/d**2))
-    x = np.where(lon>0, M+x1, M-x1)
-    y1 = np.sqrt(N**2 - (d**2/b**2 * sinla**2 + d*sinla - 1) / (1 + d**2/b**2))
-    y = np.where(lat>0, N+y1, N-y1)
+    b2 = b**2
+    d2 = d**2
+    b2d2 = 1 + b2/d2
+    d2b2 = 1 + d2/b2
+    M = (b*sinla/d - b/2) / b2d2
+    N = (d2*sinla/b2 + d/2) / d2b2
+    x1 = np.sqrt(M**2 + np.cos(lat1)**2 / b2d2)
+    x = np.where(lon>0, M+x1, M-x1) * R * ma.pi / 2
+    y1 = np.sqrt(N**2 - (d2/b2 * sinla**2 + d*sinla - 1) / d2b2)
+    y = np.where(lat<0, N+y1, N-y1) * R * ma.pi / 2
     x = np.where(lon0 | latmax,0,x)
-    x = np.where(lat0 | lonmax,np.cos(lat)*lon,x)/2
-    y = np.where(lon0 | lat0,lat,y)
-    y = np.where(lonmax,np.sin(lat)/2,y)
-    y = np.where(latmax,lat,y)/2
+    x = np.where(lat0 | lonmax,np.cos(lat)*lon*R,x)
+    y = np.where(lon0 | lat0,R*lat,y)
+    y = np.where(lonmax,np.sin(lat)*R*ma.pi/2,y)
+    y = np.where(latmax,R*lat,y)
+    x = np.where(lon > ma.pi/2, ma.pi - x, np.where(lon < -ma.pi/2, -ma.pi - x, x))
     return x,y
 def Nic_coords(x,y,ex):
-    return Hem_coords(x,y,ex[2],ex,Nic_coords1,1/2)
-def Nic_pos(x,y,ex):
-    return Hem_pos(x,y,ex[2],ex,Nic_pos1,1/2)
-Nic_vis = Hem_vis
+    if ex[2] == 0:
+        return Nic_coords1(x,y,ex)
+    elif ex[2] == 1:
+        return Onehem_coords(x,y,ex,Nic_coords1,1)
+    elif ex[2] == 2:    #Iteration doesn't like to work for bihemispheres, so the array is split, each half projected separately, and then rejoined
+        x1,x2 = np.array_split(x,2,1)
+        y1,y2 = np.array_split(y,2,1)
+        lon1,lat1 = Onehem_coords(2*x1+1,y1,(ex[0],ex[1],1),Nic_coords1,1)
+        lon2,lat2 = Onehem_coords(2*x2-1,y2,(ex[0],ex[1],1),Nic_coords1,1)
+        lon = np.concatenate((lon1,lon2),1)
+        lat = np.concatenate((lat1,lat2),1)
+        lon = np.where(x>0,lon+ma.pi/2,lon-ma.pi/2)
+        return lon,lat
+    else:
+        raise Exception("Invalid output map subtype selection (must be 0, 1, or 2)")
+def Nic_pos(lon,lat,ex):
+    return Hem_pos(lon,lat,ex[2],ex,Nic_pos1,1)
+def Nic_vis(x,y,ex):
+    return Hem_vis(x,y,ex[2])
 def Nic_pres(x,y,ex):
     return Hem_pres(x,y,ex[2])
-Nic_typ = HemfullIter_typ
+Nic_typ = HemonlyIter_typ
 Nic_rat = 1
+
+def Eckiv_coords(x,y,ex):
+    r = 1 / (2 * ma.sqrt(ma.pi / (4 + ma.pi)))
+    th = np.arcsin(y * np.sqrt(4+ma.pi) / (2*np.sqrt(ma.pi)*r))
+    lat = np.arcsin((th + np.sin(th)*np.cos(th) + 2*np.sin(th)) / (2 + ma.pi/2))
+    lon = 2 * x * np.sqrt(4*ma.pi + ma.pi**2) / (2 * r * (1 + np.cos(th)))
+    return lon,lat
+def Eckiv_pos(lon,lat,ex):
+    print("  (using iterative method, may take a bit)")
+    t = ex[0]
+    imax= ex[1]
+    i=1
+    th = lat/2
+    while np.amax(np.abs((th + np.sin(th)*np.cos(th) + 2*np.sin(th)) - ((2 + ma.pi/2) * np.sin(lat)))) > t:   #no closed-form solution, so iterate until maximum error is < tolerance
+        th = th - (th + np.sin(th)*np.cos(th) + 2*np.sin(th) - (2 + ma.pi/2) * np.sin(lat)) / (2 * np.cos(th) * (1 + np.cos(th)))
+        i+=1
+        if i>imax:
+            print("  Reached maximum of "+str(imax)+" iterations without converging, outputting result")
+            break
+    r = 1
+    x = lon * (1 + np.cos(th)) / (2 * ma.pi)#(1 / np.sqrt(4*ma.pi + ma.pi**2)) * lon * (1 + np.cos(th)) *r 
+    y = np.sin(th)#2 * np.sqrt(ma.pi / (4 + ma.pi)) * np.sin(th) *r
+    return x,y
+Eckiv_vis = Ort_vis
+Eckiv_pres = Def_pres
+Eckiv_typ = Iter_typ
+Eckiv_rat = 2
 
 def Azim_coords1(x,y,ex):
     rh = np.sqrt(x**2+y**2)
@@ -366,15 +418,16 @@ Stereo_typ = Hemonly_typ
 Stereo_rat = 1
 
 def Lamb_coords1(x,y,ex):
-    r = np.sqrt(x**2+y**2)
+    rh = np.sqrt(x**2+y**2)
+    rh = np.fmod(rh,1)
     th = np.arctan2(x,-y)
-    rh = np.arcsin(np.fmod(r,1))*2/ma.pi
-    return From_pol(rh,th)
+    rh1 = 2*np.arcsin(rh) / ma.pi
+    return From_pol(rh1,th)
 def Lamb_pos1(lon,lat,ex):
     rh,th = To_pol(lon,lat)
-    r = np.sin(rh*ma.pi/2)
-    x = r*np.sin(th)
-    y = r*np.cos(th)
+    rh1 = np.sin(rh*ma.pi/2)
+    x = rh1*np.sin(th)
+    y = rh1*np.cos(th)
     return x,y
 def Lamb_coords(x,y,hem):
     return Hem_coords(x,y,hem,0,Lamb_coords1,ma.sqrt(2)/2)
@@ -439,9 +492,12 @@ proj_list = [
     'Kavrayskiy VII',
     'Wagner VI',
     'Ortelius Oval',
+    'Nicolosi Globular',
+    'Eckert IV',
     'Azimuthal Equidistant',
     'Orthographic',
     'Stereographic',
+    'Lambert Azimuthal',
     'Mercator',
     'Gall Stereographic',
     'Miller Cylindrical'
@@ -460,11 +516,12 @@ coordsl = [
     Kav_coords,
     Wag_coords,
     Ort_coords,
-    #Nic_coords,
+    Nic_coords,
+    Eckiv_coords,
     Azim_coords,
     Ortho_coords,
     Stereo_coords,
-    #Lamb_coords,
+    Lamb_coords,
     Merc_coords,
     Gallst_coords,
     Mill_coords
@@ -480,11 +537,12 @@ posl = [
     Kav_pos,
     Wag_pos,
     Ort_pos,
-    #Nic_pos,
+    Nic_pos,
+    Eckiv_pos,
     Azim_pos,
     Ortho_pos,
     Stereo_pos,
-    #Lamb_pos,
+    Lamb_pos,
     Merc_pos,
     Gallst_pos,
     Mill_pos
@@ -500,11 +558,12 @@ visl = [
     Kav_vis,
     Wag_vis,
     Ort_vis,
-    #Nic_vis,
+    Nic_vis,
+    Eckiv_vis,
     Azim_vis,
     Ortho_vis,
     Stereo_vis,
-    #Lamb_vis,
+    Lamb_vis,
     Merc_vis,
     Gallst_vis,
     Mill_vis
@@ -520,11 +579,12 @@ presl = [
     Kav_pres,
     Wag_pres,
     Ort_pres,
-    #Nic_pres,
+    Nic_pres,
+    Eckiv_pres,
     Azim_pres,
     Ortho_pres,
     Stereo_pres,
-    #Lamb_pres,
+    Lamb_pres,
     Merc_pres,
     Gallst_pres,
     Mill_pres
@@ -540,11 +600,12 @@ ratl = [
     Kav_rat,
     Wag_rat,
     Ort_rat,
-    #Nic_rat,
+    Nic_rat,
+    Eckiv_rat,
     Azim_rat,
     Ortho_rat,
     Stereo_rat,
-    #Lamb_rat,
+    Lamb_rat,
     Merc_rat,
     Gallst_rat,
     Mill_rat
@@ -560,11 +621,12 @@ typl = [
     Kav_typ,
     Wag_typ,
     Ort_typ,
-    #Nic_typ,
+    Nic_typ,
+    Eckiv_typ,
     Azim_typ,
     Ortho_typ,
     Stereo_typ,
-    #Lamb_typ,
+    Lamb_typ,
     Merc_typ,
     Gallst_typ,
     Mill_typ
@@ -627,8 +689,8 @@ def Rotate(lon, lat, lon_in, lat_in, rot_in, lon_out, lat_out, rot_out):
                 la[...], lo[...] = rev_find_point(la, lo, rotation) 
     elif lon_out != 0:  #If only rotated by longitude, a simple frameshift can be used
         print(" Rotating from output orientation...")
-        lon -= lon_out
-        if lon_out < 0:
+        lon += lon_out
+        if lon_out > 0:
             lon = np.where(lon > ma.pi, lon-2*ma.pi, lon)
         else:
             lon = np.where(lon < -ma.pi, lon+2*ma.pi, lon)
@@ -641,7 +703,7 @@ def Rotate(lon, lat, lon_in, lat_in, rot_in, lon_out, lat_out, rot_out):
                 la[...], lo[...] = find_point(la, lo, inverse)
     elif lon_in != 0:
         print(" Rotating to input orientation...")
-        lon += lon_in
+        lon -= lon_in
         if lon_in < 0:
             lon = np.where(lon > ma.pi, lon-2*ma.pi, lon)
         else:
@@ -765,12 +827,15 @@ Projection Options and Codes (with profile):
   6: Kavrayskiy VII (1.732:1 ovalish)
   7: Wagner VI (2:1 ovalish)
   8: Ortelius Oval (2:1 oval)
-  9: Azimuthal Equidistant (1:1 circle)
- 10: Orthographic (1:1 hemisphere)
- 11: Stereographic (1:1 hemisphere)
- 12: Mercator truncated to square (1:1 square)
- 13: Gall Stereographic (1.301:1 rectangle)
- 14: Miller Cylindrical (1.364:1 rectangle)
+  9: Nicolosi Globular (1:1 hemisphere)
+ 10: Eckert IV (2:1 oval)
+ 11: Azimuthal Equidistant (1:1 circle)
+ 12: Orthographic (1:1 hemisphere)
+ 13: Stereographic (1:1 hemisphere)
+ 14: Lambert Azimuthal Equal-Area (1:1 circle)
+ 15: Mercator truncated to square (1:1 square)
+ 16: Gall Stereographic (1.301:1 rectangle)
+ 17: Miller Cylindrical (1.364:1 rectangle)
 
 ''')
     print("Input Image")
@@ -780,7 +845,7 @@ Projection Options and Codes (with profile):
             break
         print("  No file found at "+str(file_in))
     proj_in = Inprompt(" Projection: ",int)
-    if typl[proj_in] == Hemfull_typ or typl[proj_in] == HemfullIter_typ:
+    if typl[proj_in] == Hemfull_typ or typl[proj_in] == HemonlyIter_typ:
         hem_in = Inprompt("  0 for global, 1 for hemisphere, 2 for bihemisphere: ",int)
     elif typl[proj_in] == Hemonly_typ:
         hem_in = Inprompt("  1 for hemisphere, 2 for bihemisphere: ",int)
@@ -792,7 +857,7 @@ Projection Options and Codes (with profile):
 Output Image""")
     file_out = input(" Filename: ")
     proj_out = Inprompt(" Projection: ",int)
-    if typl[proj_out] == Hemfull_typ or typl[proj_out] == HemfullIter_typ:
+    if typl[proj_out] == Hemfull_typ or typl[proj_out] == HemonlyIter_typ:
         hem_out = Inprompt("  0 for global, 1 for hemisphere, 2 for bihemisphere: ",int)
     elif typl[proj_out] == Hemonly_typ:
         hem_out = Inprompt("  1 for hemisphere, 2 for bihemisphere: ",int)
