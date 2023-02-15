@@ -25,16 +25,17 @@ The following projections are currently supported:
 - Kavrayskiy VII
 - Wagner VI
 - Ortelius Oval
+- Nicolosi Globular
+- Eckert IV
 - Azimuthal Equidistant
 - Orthographic
 - Stereographic
+- Lambert Azimuthal Equal-Area
 - Mercator (truncated at 85.05 latitude to form a square)
 - Gall Stereographic
 - Miller Cylindrical
 
-I'm working on Lambert Azimuthal Equal-Area and Nicolosi Globular but haven't worked out the bugs yet, and I'll probably throw in Cylindrical Equal-Area at some point
-
-The azimuthal projections (Azimuthal Equidistant, Orthographic, Stereographic) can be projected as single global maps (where possible), a single hemispheric map, or a bihemispheric map with maps of each hemisphere placed side-by-side.
+The azimuthal projections (Nicolosi, Azimuthal Equidistant, Orthographic, Stereographic, Lambert) can be projected as single global maps (where possible), a single hemispheric map, or a bihemispheric map with maps of each hemisphere placed side-by-side.
 
 Both input and output map can have any arbitrary aspect, which is defined by specifying the latitude and longitude of the map's center and then the clockwise rotation of the globe around that center point, relative to the default of having the north pole directly above the center. Projecting out to a given output aspect and then taking that map as an input with that same information for its aspect should always allow you to return to the original aspect.
 
@@ -44,6 +45,6 @@ Data is copied from the input map to the output by a nearest-neighbor approach; 
 
 Where input and output projections have the same aspect ratio, the output will have the same dimensions as the input; where aspect ratios vary, the output's dimensions will be increased from the input's.
 
-Several of the supported projections (Aitoff, Winkel Tripel, Ortelius Oval) are defined by functions that specify map position from given latitude, longitude coordinates, which can be used for input maps here (because the script works backwards from the output map to the input), but no closed-form solution exists for determining lat, lon from map position. For these cases, use as an output map is allowed using the methodology from ["An iterative approach for inverse transformation of map projections"](https://doi.org/10.1080/15230406.2016.1200492), Bildirici 2016. This determines lat, lon from map position with an iterative approach that is repeated until either the error in every pixel is less than 1 millionth of a radian (excluding pixels inside the usually cropped area which never seem to converge properly, hence the noise that appears there) or a maximum number of iterations has passed (20 by default), in which case a warning will appear.
+Several of the supported projections (Aitoff, Winkel Tripel, Ortelius Oval, Nicolosi) are defined by functions that specify map position from given latitude, longitude coordinates, which can be used for input maps here (because the script works backwards from the output map to the input), but no closed-form solution exists for determining lat, lon from map position. For these cases, use as an output map is allowed using the methodology from ["An iterative approach for inverse transformation of map projections"](https://doi.org/10.1080/15230406.2016.1200492), Bildirici 2016. This determines lat, lon from map position with an iterative approach that is repeated until either the error in every pixel is less than 1 millionth of a radian (excluding pixels inside the usually cropped area which never seem to converge properly, hence the noise that appears there) or a maximum number of iterations has passed (20 by default), in which case a warning will appear.
 
-Mollweide has no closed-form solution to determine map position from lat, lon, and when used as input has its own iterative method with the same tolerances.
+Mollweide and Eckert IV have no closed-form solutions to determine map position from lat, lon, and when used as input have their own iterative methods with the same tolerances.
