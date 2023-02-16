@@ -313,7 +313,7 @@ def Nic_coords(x,y,ex):
         return Nic_coords1(x,y,ex)
     elif ex[2] == 1:
         return Onehem_coords(x,y,ex,Nic_coords1,1)
-    elif ex[2] == 2:    #Iteration doesn't like to work for bihemispheres, so the array is split, each half projected separately, and then rejoined
+    elif ex[2] == 2:    #Iteration doesn't like to work for bihemispheres, so the arrays are split, each half projected separately, and then rejoined
         x1,x2 = np.array_split(x,2,1)
         y1,y2 = np.array_split(y,2,1)
         lon1,lat1 = Onehem_coords(2*x1+1,y1,(ex[0],ex[1],1),Nic_coords1,1)
@@ -845,9 +845,9 @@ Projection Options and Codes (with profile):
             break
         print("  No file found at "+str(file_in))
     proj_in = Inprompt(" Projection: ",int)
-    if typl[proj_in] == Hemfull_typ or typl[proj_in] == HemonlyIter_typ:
+    if typl[proj_in] == Hemfull_typ:
         hem_in = Inprompt("  0 for global, 1 for hemisphere, 2 for bihemisphere: ",int)
-    elif typl[proj_in] == Hemonly_typ:
+    elif typl[proj_in] == Hemonly_typ or typl[proj_in] == HemonlyIter_typ:
         hem_in = Inprompt("  1 for hemisphere, 2 for bihemisphere: ",int)
     lon_in = ma.radians(Inprompt(" Center longitude (-180 to 180): ",float))
     lat_in = ma.radians(Inprompt(" Center latitude (-90 to 90): ",float))
@@ -857,9 +857,9 @@ Projection Options and Codes (with profile):
 Output Image""")
     file_out = input(" Filename: ")
     proj_out = Inprompt(" Projection: ",int)
-    if typl[proj_out] == Hemfull_typ or typl[proj_out] == HemonlyIter_typ:
+    if typl[proj_out] == Hemfull_typ:
         hem_out = Inprompt("  0 for global, 1 for hemisphere, 2 for bihemisphere: ",int)
-    elif typl[proj_out] == Hemonly_typ:
+    elif typl[proj_out] == Hemonly_typ or typl[proj_out] == HemonlyIter_typ:
         hem_out = Inprompt("  1 for hemisphere, 2 for bihemisphere: ",int)
     lon_out = ma.radians(Inprompt(" Center longitude (-180 to 180): ",float))
     lat_out = ma.radians(Inprompt(" Center latitude (-90 to 90): ",float))
@@ -877,6 +877,8 @@ Crop map edges to single globe surface?
 Working...""")
 
     Main(file_in, file_out, proj_in, proj_out, lon_in, lat_in, rot_in, lon_out, lat_out, rot_out,hem_in=hem_in,hem_out=hem_out,trunc=trunc)
+
+    z = input("Press enter to close")
 
 
 
