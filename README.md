@@ -35,6 +35,8 @@ The following projections are currently supported:
 - Gall Stereographic
 - Miller Cylindrical
 
+If there's a projection you really need for something you can raise an issue and I can look into it (Robinson would be nice but is a right pain to implement, Cylindrical equal-area I can add if someone really wants it, fancier stuff like conic and polyhedral projections are probably possible but would be a fair bit of work, and one of these days I might get around to adding the global version of Nicolosi)
+
 The azimuthal projections (Nicolosi, Azimuthal Equidistant, Orthographic, Stereographic, Lambert) can be projected as single global maps (where possible), a single hemispheric map, or a bihemispheric map with maps of each hemisphere placed side-by-side.
 
 Both input and output map can have any arbitrary aspect, which is defined by specifying the latitude and longitude of the map's center and then the clockwise rotation of the globe around that center point, relative to the default of having the north pole directly above the center. Projecting out to a given output aspect and then taking that map as an input with that same information for its aspect should always allow you to return to the original aspect.
