@@ -3,6 +3,9 @@ import numpy as np
 import os
 import math as ma
 
+#Increases potential map size to 1 million x 1 million pixels, which is probably more than anyone's RAM could actually handle
+Image.MAX_IMAGE_PIXELS = 1e12
+
 #Remapping functions for each projection:
 #coords determines (lon,lat) coordinates for a given (x,y) position on the map
 #pos determines (x,y) position for given (lon,lat) coordinates
