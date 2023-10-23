@@ -3,9 +3,6 @@ import numpy as np
 import os
 import math as ma
 
-#Increases potential map size to 1 million x 1 million pixels, which is probably more than anyone's RAM could actually handle
-Image.MAX_IMAGE_PIXELS = 1e12
-
 #Remapping functions for each projection:
 #coords determines (lon,lat) coordinates for a given (x,y) position on the map
 #pos determines (x,y) position for given (lon,lat) coordinates
@@ -13,6 +10,7 @@ Image.MAX_IMAGE_PIXELS = 1e12
 #pres determines if an (x,y) position is present on the input
 #typ incorporates extra information required for specific projection types
 #rat is the map width/height ratio
+#int determines type of interpolation
 #x and y have ranges of (-1, 1)
 #lon is (-pi,pi) or (-pi/2, pi/2) as appropriate
 #lat is (-pi/2, pi/2)
@@ -136,6 +134,11 @@ def Iter_typ(tol,imax,hem):
     return (tol,imax)
 def HemonlyIter_typ(tol,imax,hem):
     return (tol,imax,hem)
+
+Def_int = 100
+Rect_int = 101
+No_coords_int = 102
+No_pos_int = 103
     
 
 #Then, functions by projection
@@ -151,6 +154,7 @@ Equi_vis = Def_vis
 Equi_pres = Def_pres
 Equi_typ = Def_typ
 Equi_rat = 2
+Equi_int = Rect_int
 
 def Sin_coords(x,y,ex):
     lat = ma.pi*y/2
@@ -165,6 +169,7 @@ def Sin_vis(x,y,lat):
 Sin_pres = Def_pres
 Sin_typ = Def_typ
 Sin_rat = 2
+Sin_int = Def_int
 
 def Moll_coords(x,y,ex):
     th = np.arcsin(y)
@@ -190,6 +195,7 @@ Moll_vis = Circ_vis
 Moll_pres = Def_pres
 Moll_typ = Iter_typ
 Moll_rat = 2
+Moll_int = No_pos_int
 
 def Hammer_coords(x,y,ex):
     x1 = x*ma.sqrt(2)*2
@@ -206,6 +212,7 @@ Hammer_vis = Circ_vis
 Hammer_pres = Def_pres
 Hammer_typ = Def_typ
 Hammer_rat = 2
+Hammer_int = Def_int
 
 def Ait_guess(x,y,ex):  #Special routine for Ait_coords initial guess
     return np.where(Circ_vis(x,y,ex),Hammer_coords(x,y,ex),Wag_coords(x,y,ex))
@@ -220,6 +227,7 @@ Ait_vis = Circ_vis
 Ait_pres = Def_pres
 Ait_typ = Iter_typ
 Ait_rat = 2
+Ait_int = No_coords_int
 
 def Wink_coords(x,y,ex):
     return Inv_coords(x,y,ex[0],ex[1],Wink_pos,Wag_coords,Wink_vis)
@@ -235,6 +243,7 @@ def Wink_vis(x,y,ex):
 Wink_pres = Def_pres
 Wink_typ = Iter_typ
 Wink_rat = (1+ma.pi/2)/(ma.pi/2)
+Wink_int = No_coords_int
 
 def Wag_coords(x,y,ex):
     lat = y*ma.pi/2
@@ -250,6 +259,8 @@ def Wag_vis(x,y,ex):
 Wag_pres = Def_pres
 Wag_typ = Def_typ
 Wag_rat = 2
+Wag_int = Def_int
+
 
 Kav_coords = Wag_coords
 Kav_pos = Wag_pos
@@ -257,6 +268,7 @@ Kav_vis = Wag_vis
 Kav_pres = Wag_pres
 Kav_typ = Wag_typ
 Kav_rat = ma.sqrt(3)
+Kav_int = Wag_int
 
 def Ort_coords(x,y,ex):
     lon1,lat1 = Inv_coords(x,y,ex[0],ex[1],Ort_pos,Hammer_coords,Circ_vis)
@@ -279,6 +291,7 @@ def Ort_vis(x,y,ex):
 Ort_pres = Def_pres
 Ort_typ = Iter_typ
 Ort_rat = 2
+Ort_int = No_coords_int
 
 def Nic_coords1(x,y,ex):
     return Inv_coords(x,y,ex[0],ex[1],Nic_pos,Azim_coords,Nic_vis,ex,ex[2])
@@ -335,6 +348,7 @@ def Nic_pres(x,y,ex):
     return Hem_pres(x,y,ex[2])
 Nic_typ = HemonlyIter_typ
 Nic_rat = 1
+Nic_int = No_coords_int
 
 def Eckiv_coords(x,y,ex):
     r = 1 / (2 * ma.sqrt(ma.pi / (4 + ma.pi)))
@@ -362,6 +376,7 @@ Eckiv_vis = Ort_vis
 Eckiv_pres = Def_pres
 Eckiv_typ = Iter_typ
 Eckiv_rat = 2
+Eckiv_int = No_pos_int
 
 def Azim_coords1(x,y,ex):
     rh = np.sqrt(x**2+y**2)
@@ -380,6 +395,7 @@ Azim_vis = Hem_vis
 Azim_pres = Hem_pres
 Azim_typ = Hemfull_typ
 Azim_rat = 1
+Azim_int = Def_int
 
 def Ortho_coords1(x,y,ex):
     rh = np.sqrt((2*x)**2+(2*y)**2)
@@ -399,6 +415,7 @@ Ortho_vis = Hem_vis
 Ortho_pres = Hem_pres
 Ortho_typ = Hemonly_typ
 Ortho_rat = 1
+Ortho_int = Def_int
 
 def Stereo_coords1(x,y,ex):
     r = np.sqrt(x**2+y**2)
@@ -419,6 +436,7 @@ Stereo_vis = Hem_vis
 Stereo_pres = Hem_pres
 Stereo_typ = Hemonly_typ
 Stereo_rat = 1
+Stereo_int = Def_int
 
 def Lamb_coords1(x,y,ex):
     rh = np.sqrt(x**2+y**2)
@@ -440,6 +458,7 @@ Lamb_vis = Hem_vis
 Lamb_pres = Hem_pres
 Lamb_typ = Hemfull_typ
 Lamb_rat = 1
+Lamb_int = Def_int
     
 
 def Merc_coords(x,y,ex):
@@ -455,6 +474,7 @@ def Merc_pres(x,y,ex):
     return np.where(abs(y) > 1, False, True)
 Merc_typ = Def_typ
 Merc_rat = 1
+Merc_int = Rect_int
 
 def Gallst_coords(x,y,ex):
     lon = x*ma.pi
@@ -468,6 +488,7 @@ Gallst_vis = Def_vis
 Gallst_pres = Def_pres
 Gallst_typ = Def_typ
 Gallst_rat = (ma.pi/ma.sqrt(2))/(1+ma.sqrt(2)/2)
+Gallst_int = Rect_int
 
 def Mill_coords(x,y,ex):
     lon = x*ma.pi
@@ -483,6 +504,7 @@ Mill_vis = Def_vis
 Mill_pres = Def_pres
 Mill_typ = Def_typ
 Mill_rat = ma.pi/(5/4*ma.asinh(ma.tan(ma.pi*2/5)))
+Mill_int = Rect_int
 
 #List of all currently implemented projections; finding their index in this list will give you the proper index to use for running the functions
 proj_list = [
@@ -635,14 +657,35 @@ typl = [
     Mill_typ
     ]
 
+intl = [
+    Equi_int,
+    Sin_int,
+    Moll_int,
+    Hammer_int,
+    Ait_int,
+    Wink_int,
+    Kav_int,
+    Wag_int,
+    Ort_int,
+    Nic_int,
+    Eckiv_int,
+    Azim_int,
+    Ortho_int,
+    Stereo_int,
+    Lamb_int,
+    Merc_int,
+    Gallst_int,
+    Mill_int
+    ]
+
 #Rotates from one aspect to another; written almost exclusively by Amadea de Silva
 
 def to_cart(lat, lon):
     return np.array([np.cos(lon)*np.cos(lat), np.sin(lon)*np.cos(lat), np.sin(lat)])
 
 def from_cart(point):
-    lat = np.arcsin(point[2])
-    lon = np.arctan2(point[1], point[0])
+    lat = np.arcsin(point[2,:])
+    lon = np.arctan2(point[1,:], point[0,:])
     return lat, lon
 
 def construct_matrix(new_lat, new_lon, n_rot):
@@ -682,30 +725,30 @@ def rev_find_point(nb_tar_lat, nb_tar_lon, rotation):
     
     return from_cart(tar_point_ob)
 
-def Rotate(lon, lat, lon_in, lat_in, rot_in, lon_out, lat_out, rot_out):
+def Rotate_from(lon, lat, lon_out, lat_out, rot_out):
 
     if lat_out != 0 or rot_out != 0:    #Use rotation matrix only where necessary
-        print(" Rotating from output orientation...")
+        
         rotation = construct_matrix(lat_out, lon_out, rot_out)
-        with np.nditer([lon, lat], op_flags=[['readwrite'],['readwrite']]) as co:
-            for lo, la in co:
-                la[...], lo[...] = rev_find_point(la, lo, rotation) 
+        latr, lonr = rev_find_point(lat.flatten(), lon.flatten(), rotation)
+        lon = np.reshape(lonr, lon.shape)
+        lat = np.reshape(latr, lat.shape)
     elif lon_out != 0:  #If only rotated by longitude, a simple frameshift can be used
-        print(" Rotating from output orientation...")
         lon += lon_out
         if lon_out > 0:
             lon = np.where(lon > ma.pi, lon-2*ma.pi, lon)
         else:
             lon = np.where(lon < -ma.pi, lon+2*ma.pi, lon)
 
+    return lon, lat
+
+def Rotate_to(lon, lat, lon_in, lat_in, rot_in):
     if lat_in != 0 or rot_in != 0:
-        print(" Rotating to input orientation...")
         inverse = np.transpose(construct_matrix(lat_in, lon_in, rot_in))    #set inverse matrix -> rotation matrix so inverse is its transpose
-        with np.nditer([lon, lat], op_flags=[['readwrite'],['readwrite']]) as co:
-            for lo, la in co:
-                la[...], lo[...] = find_point(la, lo, inverse)
+        latr, lonr = find_point(lat.flatten(), lon.flatten(), inverse)
+        lon = np.reshape(lonr, lon.shape)
+        lat = np.reshape(latr, lat.shape)
     elif lon_in != 0:
-        print(" Rotating to input orientation...")
         lon -= lon_in
         if lon_in < 0:
             lon = np.where(lon > ma.pi, lon-2*ma.pi, lon)
@@ -720,18 +763,83 @@ def Rotate(lon, lat, lon_in, lat_in, rot_in, lon_out, lat_out, rot_out):
 def Find_index(x1, y1, coords, pos, lon_in, lat_in, rot_in, ex_in, lon_out, lat_out, rot_out, ex_out):
     print(" Determining lat/lon of output pixels...")
     lon1, lat1 = coords(x1,y1,ex_out)
-    lon2, lat2 = Rotate(lon1, lat1, lon_in, lat_in, rot_in, lon_out, lat_out, rot_out)
+    print(" Rotating from output orientation...")
+    lon1, lat1 = Rotate_from(lon1, lat1, lon_out, lat_out, rot_out)
+    print(" Rotating to input orientation...")
+    lon1, lat1 = Rotate_to(lon1, lat1, lon_in, lat_in, rot_in)
     print(" Determining corresponding input pixels...")
-    x2, y2 = pos(lon2,lat2,ex_in)
-    return y2, x2
+    x2, y2 = pos(lon1,lat1,ex_in)
+    return y2, x2   
+
+def Find_data(data_in, x_in, y_in, x_out, y_out, interp, proj_in, proj_out, lon_in, lat_in, rot_in, ex_in, lon_out, lat_out, rot_out, ex_out):
+    if interp == 5:
+        if intl[proj_in] == Rect_int:
+            from scipy.interpolate import RectSphereBivariateSpline as scint
+        else:
+            from scipy.interpolate import RectBivariateSpline as scint
+    elif interp > 0:
+        from scipy.interpolate import RegularGridInterpolator as scint
+    print(" Determining lat/lon of output pixels...")
+    lon1, lat1 = coordsl[proj_out](x_out, y_out, ex_out)
+    print(" Rotating from output orientation...")
+    lon1, lat1 = Rotate_from(lon1, lat1, lon_out, lat_out, rot_out)
+    print(" Rotating to input orientation...")
+    lon1, lat1 = Rotate_to(lon1, lat1, lon_in, lat_in, rot_in)
+    if interp == 5:
+        if intl[proj_in] == Rect_int:
+            print(" Determining lat/lon of input pixels...")
+            x_in,y_in = np.meshgrid(x_in,y_in)
+            lon2, lat2 = coordsl[proj_in](x_in,y_in,ex_in)
+            in1 = np.ravel(ma.pi/2 - lat2[:,0])
+            in2 = np.ravel(ma.pi + lon2[0,:])
+            out1 = np.ravel(np.remainder(ma.pi/2 - lat1, ma.pi))
+            out2 = np.ravel(np.remainder(ma.pi+lon1, 2*ma.pi))
+            if proj_in == proj_list.index('Mercator'):
+                x1, y1 = posl[proj_in](lon1, lat1, ex_in)
+            else:
+                x1 = 0
+                y1 = 0
+        else:
+            print(" Determining corresponding input pixels...")
+            x1, y1 = posl[proj_in](lon1,lat1,ex_in)
+            x1 = np.where(np.abs(x1)>1, (np.abs(x1-1) % 2 - 1)* np.where(x1>0,1,-1), x1)  #x wraps around
+            y1 = np.where(np.abs(y1)>1, np.abs(np.abs(y1-1)%4-2)-1, y1)    #y inverts
+            out1 = np.ravel(0-y1)
+            out2 = np.ravel(x1)
+            in1 = 0 - y_in
+            in2 = x_in
+        print(" Interpolating input data to output pixels...")
+        if data_in.ndim > 2:
+            data_out = np.zeros((x_out.shape[0],x_out.shape[1],data_in.shape[2]),data_in.dtype)
+            for n in range(data_in.shape[2]):
+                spline = scint(in1, in2, data_in[:,:,n])
+                data_out[:,:,n] = spline.ev(out1, out2).reshape((x_out.shape)).astype(data_in.dtype)
+        else:
+            spline = scint(in1, in2, data_in)
+            data_out = spline.ev(out1, out2).reshape((x_out.shape)).astype(data_in.dtype)
+    else:
+        types = ['none','nearest','linear','cubic','pchip']
+        print(" Determining corresponding input pixels...")
+        x1, y1 = posl[proj_in](lon1,lat1,ex_in)
+        x1 = np.where(np.abs(x1)>1, (np.abs(x1-1) % 2 - 1)* np.where(x1>0,1,-1), x1)  #x wraps around
+        y1 = np.where(np.abs(y1)>1, np.abs(np.abs(y1-1)%4-2)-1, y1)    #y inverts
+        print(" Interpolating input data to output pixels...")
+        if data_in.ndim > 2:
+            data_out = np.zeros((x_out.shape[0],x_out.shape[1],data_in.shape[2]),data_in.dtype)
+            for n in range(data_in.shape[2]):
+                inter = scint((y_in,x_in), data_in[:,:,n].astype(float), method = types[interp], bounds_error=False, fill_value=None)
+                data_out[:,:,n] = inter(np.stack((y1,x1),-1)).astype(data_in.dtype)
+        else:
+            inter = scint((y_in,x_in), data_in.astype(float), method = types[interp], bounds_error=False, fill_value=None)
+            data_out = inter(np.stack((y1,x1),-1)).astype(data_in.dtype)
+    return data_out, x1, y1
+
 
 #Main function
 
 def Main(file_in, file_out, proj_in=0, proj_out=0, lon_in=0, lat_in=0, rot_in=0, lon_out=0, lat_out=0, rot_out=0,
-         tol=1e-6, imax=20, hem_in=0, hem_out=0, trunc=1):
-    coords = coordsl[proj_out]
-    pos = posl[proj_in]
-    if trunc == 1:
+         tol=1e-6, imax=20, hem_in=0, hem_out=0, trim=0, trunc=False, interp=0, aviter = False):
+    if trunc:
         vis = visl[proj_out]
     else:
         vis = Def_vis
@@ -762,15 +870,31 @@ def Main(file_in, file_out, proj_in=0, proj_out=0, lon_in=0, lat_in=0, rot_in=0,
     #    blank = 0
     x_out = np.linspace(-1+1/mapw_out,1-1/mapw_out,mapw_out)    #All maps are treated internally as squares
     y_out = np.linspace(1-1/maph_out,-1+1/maph_out,maph_out)
+    if trim != 0:
+        x_out = x_out[trim[0]:trim[2]]  #trim at start, so all future steps are applied only for desired pixels
+        y_out = y_out[trim[1]:trim[3]]
     x_out,y_out = np.meshgrid(x_out,y_out)
-    y_in,x_in = Find_index(x_out, y_out, coords, pos, lon_in, lat_in, rot_in, ex_in, lon_out, lat_out, rot_out, ex_out)
+    if interp == 0:
+        coords = coordsl[proj_out]
+        pos = posl[proj_in]
+        y_in,x_in = Find_index(x_out, y_out, coords, pos, lon_in, lat_in, rot_in, ex_in, lon_out, lat_out, rot_out, ex_out)
+        x_in2 = np.where(np.abs(x_in)>1, (np.abs(x_in-1) % 2 - 1)* np.where(x_in>0,1,-1), x_in)  #x wraps around
+        y_in2 = np.where(np.abs(y_in)>1, np.abs(np.abs(y_in-1)%4-2)-1, y_in)    #y inverts
+        data_out = data_in[
+            (np.rint((1-y_in2) * maph/2 - 0.5).astype(np.int64),
+            np.rint((x_in2+1) * mapw/2 - 0.5).astype(np.int64))]
+    else:
+        x_in = np.linspace(-1+1/mapw,1-1/mapw,mapw)
+        y_in = np.linspace(1-1/maph,-1+1/maph,maph)
+        data_out, x_in2, y_in2 = Find_data(data_in, x_in, y_in, x_out, y_out, interp, proj_in, proj_out, lon_in, lat_in, rot_in, ex_in, lon_out, lat_out, rot_out, ex_out)
     print(" Remapping pixels...")
-    x_in2 = np.where(np.abs(x_in)>1, (np.abs(x_in-1) % 2 - 1)* np.where(x_in>0,1,-1), x_in)  #x wraps around
-    y_in2 = np.where(np.abs(y_in)>1, np.abs(np.abs(y_in-1)%4-2)-1, y_in)    #y inverts
     #print(np.amax(x_in))
     #print(np.amax(y_in))
     vis1 = vis(x_out,y_out,ex_out)
-    pres1 = pres(x_in,y_in,ex_in)
+    if interp == 5 and proj_in != proj_list.index('Mercator'):
+        pres1 = True
+    else: 
+        pres1 = pres(x_in2,y_in2,ex_in)
     if data_in.ndim > 2:    #various procedures to allow the visible and present masks to be cast out to the appropriate array shape
         vis2 = np.expand_dims(vis1,-1)
         vis3 = vis2
@@ -783,10 +907,6 @@ def Main(file_in, file_out, proj_in=0, proj_out=0, lon_in=0, lat_in=0, rot_in=0,
     else:
         vis3=vis1
         pres3=pres1
-            
-    data_out = data_in[
-            (np.rint((1-y_in2) * maph/2 - 0.5).astype(np.int64),
-            np.rint((x_in2+1) * mapw/2 - 0.5).astype(np.int64))]
     blank = np.zeros_like(data_out)
     data_out = np.where(
         vis3 & pres3,
@@ -803,11 +923,13 @@ def Main(file_in, file_out, proj_in=0, proj_out=0, lon_in=0, lat_in=0, rot_in=0,
 
 #Input    
 
-def Inprompt(prompt,f):
+def Inprompt(prompt,f,proj=False):
     inp = input(prompt)
     while True:
         try:
             var = f(inp)
+            if proj:
+                a = typl[var]
             return var
         except:
             inp = input(" Invalid input, try again: ")
@@ -847,7 +969,7 @@ Projection Options and Codes (with profile):
         if os.path.exists(file_in):
             break
         print("  No file found at "+str(file_in))
-    proj_in = Inprompt(" Projection: ",int)
+    proj_in = Inprompt(" Projection: ",int,True)
     if typl[proj_in] == Hemfull_typ:
         hem_in = Inprompt("  0 for global, 1 for hemisphere, 2 for bihemisphere: ",int)
     elif typl[proj_in] == Hemonly_typ or typl[proj_in] == HemonlyIter_typ:
@@ -859,7 +981,7 @@ Projection Options and Codes (with profile):
     print("""
 Output Image""")
     file_out = input(" Filename: ")
-    proj_out = Inprompt(" Projection: ",int)
+    proj_out = Inprompt(" Projection: ",int,True)
     if typl[proj_out] == Hemfull_typ:
         hem_out = Inprompt("  0 for global, 1 for hemisphere, 2 for bihemisphere: ",int)
     elif typl[proj_out] == Hemonly_typ or typl[proj_out] == HemonlyIter_typ:
@@ -867,19 +989,43 @@ Output Image""")
     lon_out = ma.radians(Inprompt(" Center longitude (-180 to 180): ",float))
     lat_out = ma.radians(Inprompt(" Center latitude (-90 to 90): ",float))
     rot_out = ma.radians(Inprompt(" Clockwise rotation from north (0 to 360): ",float))
+    print("""
+Interpolation:
+ 0: None; may have artifacts in some projections, but requires no scipy install
+ 1: Nearest; copies nearest pixel
+ 2: Linear (blurry but most reliable)
+ 3: Cubic (very slow)
+ 4: PCHIP (even slower)
+ 5: Spline""")
+    interp = Inprompt("Interpolation type: ",int)
+    trim = input("""
+Trim map edges?
+ Specify pixel coordinates on output map to crop output to
+ Only these pixels will be projected, so saves time
+ (but be sure to expand to full map dimensions if you want to return to project again)
+ y/n: """)
+    if 'y' in trim or 'Y' in trim or '1' in trim:
+        trim = [0,0,0,0]
+        trim[0] = Inprompt("   Left edge pixel index: ",int)
+        trim[1] = Inprompt("    Top edge pixel index: ",int)
+        trim[2] = Inprompt("  Right edge pixel index: ",int)
+        trim[3] = Inprompt(" Bottom edge pixel index: ",int)
+    else:
+        trim = 0
     trunc = input("""
-Crop map edges to single globe surface?
- Cropped maps may have missing pixels on edges when reprojected a second time
- Uncropped maps may have odd noise on edges in some projections (outside of the usually cropped area)
+Limit map output to single globe surface?
+ Limited maps may have missing pixels on edges when reprojected a second time
+ Unlimited maps may have odd noise on edges in some projections (outside of the usually cropped area)
  y/n: """)
     if 'y' in trunc or 'Y' in trunc or '1' in trunc:
-        trunc = 1
+        trunc = True
     else:
-        trunc = 0
+        trunc = False
+
     print("""
 Working...""")
 
-    Main(file_in, file_out, proj_in, proj_out, lon_in, lat_in, rot_in, lon_out, lat_out, rot_out,hem_in=hem_in,hem_out=hem_out,trunc=trunc)
+    Main(file_in, file_out, proj_in, proj_out, lon_in, lat_in, rot_in, lon_out, lat_out, rot_out, hem_in=hem_in, hem_out=hem_out, trim=trim, trunc=trunc, interp=interp)
 
     z = input("Press enter to close")
 
