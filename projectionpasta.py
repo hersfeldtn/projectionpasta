@@ -922,7 +922,11 @@ def Main(file_in, file_out, proj_in=0, proj_out=0, lon_in=0, lat_in=0, rot_in=0,
     map_out.save(file_out)
     print("Finished; saved to "+file_out)
             
-
+#Runs the main function but directly takes angle inputs in degrees      
+def MainDeg(file_in, file_out, proj_in=0, proj_out=0, lon_in=0, lat_in=0, rot_in=0, lon_out=0, lat_out=0, rot_out=0,
+         tol=1e-6, imax=20, hem_in=0, hem_out=0, trim=0, trunc=False, interp=0, aviter = False):
+    Main(file_in, file_out, proj_in, proj_out, ma.radians(lon_in), ma.radians(lat_in), ma.radians(rot_in), ma.radians(lon_out), ma.radians(lat_out), ma.radians(rot_out),
+         tol, imax, hem_in, hem_out, trim, trunc, interp, aviter)
 
 #Input    
 
