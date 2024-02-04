@@ -16,7 +16,7 @@ Second, the raw python script, which depends on the following packages that shou
 - Pillow
 - scipy   (if using interpolation; won't be imported otherwise)
 
-Either will run as a command-line program, and the latter can potentially be imported and used as a python function.
+Either will run as a command-line program, and the latter can potentially be imported and used as a python function. I've only tested these on Windows, but there's no particular reason to think the python version shouldn't work on other operating systems.
 
 The following projections are currently supported:
 - Equirectangular / Plate Caree
