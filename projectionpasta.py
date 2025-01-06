@@ -1092,7 +1092,7 @@ Limit map output to single globe surface?
         parser.add_argument("--trunc", action="store_true", help="Truncate output projection to single globe surface")
 
         args = parser.parse_args(sys.argv[1:])
-        Main(
+        MainDeg(
             str(args.file_in), str(args.file_out),
             args.proj_in, args.proj_out,
             args.lon_in, args.lat_in, args.rot_in,
