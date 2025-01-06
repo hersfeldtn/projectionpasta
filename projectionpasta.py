@@ -1,5 +1,8 @@
 from PIL import Image
 import numpy as np
+import pathlib as pl
+import argparse as ap
+import sys
 import os
 import math as ma
 
@@ -942,9 +945,10 @@ def Inprompt(prompt,f,proj=False):
             inp = input(" Invalid input, try again: ")
 
 if __name__ == "__main__":
-    hem_in=0
-    hem_out=0
-    print('''
+    if len(sys.argv) <= 1:
+        hem_in=0
+        hem_out=0
+        print('''
 Projection Pasta
 For Reprojection of maps between arbitrary aspects
 Made 2023 by Amadea de Silva and Nikolai Hersfeldt
@@ -970,33 +974,33 @@ Projection Options and Codes (with profile):
  17: Miller Cylindrical (1.364:1 rectangle)
 
 ''')
-    print("Input Image")
-    while True:
-        file_in = input(" Filename: ")
-        if os.path.exists(file_in):
-            break
-        print("  No file found at "+str(file_in))
-    proj_in = Inprompt(" Projection: ",int,True)
-    if typl[proj_in] == Hemfull_typ:
-        hem_in = Inprompt("  0 for global, 1 for hemisphere, 2 for bihemisphere: ",int)
-    elif typl[proj_in] == Hemonly_typ or typl[proj_in] == HemonlyIter_typ:
-        hem_in = Inprompt("  1 for hemisphere, 2 for bihemisphere: ",int)
-    lon_in = ma.radians(Inprompt(" Center longitude (-180 to 180): ",float))
-    lat_in = ma.radians(Inprompt(" Center latitude (-90 to 90): ",float))
-    rot_in = ma.radians(Inprompt(" Clockwise rotation from north (0 to 360): ",float))
+        print("Input Image")
+        while True:
+            file_in = input(" Filename: ")
+            if os.path.exists(file_in):
+                break
+            print("  No file found at "+str(file_in))
+        proj_in = Inprompt(" Projection: ",int,True)
+        if typl[proj_in] == Hemfull_typ:
+            hem_in = Inprompt("  0 for global, 1 for hemisphere, 2 for bihemisphere: ",int)
+        elif typl[proj_in] == Hemonly_typ or typl[proj_in] == HemonlyIter_typ:
+            hem_in = Inprompt("  1 for hemisphere, 2 for bihemisphere: ",int)
+        lon_in = ma.radians(Inprompt(" Center longitude (-180 to 180): ",float))
+        lat_in = ma.radians(Inprompt(" Center latitude (-90 to 90): ",float))
+        rot_in = ma.radians(Inprompt(" Clockwise rotation from north (0 to 360): ",float))
 
-    print("""
+        print("""
 Output Image""")
-    file_out = input(" Filename: ")
-    proj_out = Inprompt(" Projection: ",int,True)
-    if typl[proj_out] == Hemfull_typ:
-        hem_out = Inprompt("  0 for global, 1 for hemisphere, 2 for bihemisphere: ",int)
-    elif typl[proj_out] == Hemonly_typ or typl[proj_out] == HemonlyIter_typ:
-        hem_out = Inprompt("  1 for hemisphere, 2 for bihemisphere: ",int)
-    lon_out = ma.radians(Inprompt(" Center longitude (-180 to 180): ",float))
-    lat_out = ma.radians(Inprompt(" Center latitude (-90 to 90): ",float))
-    rot_out = ma.radians(Inprompt(" Clockwise rotation from north (0 to 360): ",float))
-    print("""
+        file_out = input(" Filename: ")
+        proj_out = Inprompt(" Projection: ",int,True)
+        if typl[proj_out] == Hemfull_typ:
+            hem_out = Inprompt("  0 for global, 1 for hemisphere, 2 for bihemisphere: ",int)
+        elif typl[proj_out] == Hemonly_typ or typl[proj_out] == HemonlyIter_typ:
+            hem_out = Inprompt("  1 for hemisphere, 2 for bihemisphere: ",int)
+        lon_out = ma.radians(Inprompt(" Center longitude (-180 to 180): ",float))
+        lat_out = ma.radians(Inprompt(" Center latitude (-90 to 90): ",float))
+        rot_out = ma.radians(Inprompt(" Clockwise rotation from north (0 to 360): ",float))
+        print("""
 Interpolation:
  0: None; may have artifacts in some projections, but requires no scipy install
  1: Nearest; copies nearest pixel
@@ -1004,37 +1008,95 @@ Interpolation:
  3: Cubic (very slow)
  4: PCHIP (even slower)
  5: Spline""")
-    interp = Inprompt("Interpolation type: ",int)
-    trim = input("""
+        interp = Inprompt("Interpolation type: ",int)
+        trim = input("""
 Trim map edges?
  Specify pixel coordinates on output map to crop output to
  Only these pixels will be projected, so saves time
  (but be sure to expand to full map dimensions if you want to return to project again)
  y/n: """)
-    if 'y' in trim or 'Y' in trim or '1' in trim:
-        trim = [0,0,0,0]
-        trim[0] = Inprompt("   Left edge pixel index: ",int)
-        trim[1] = Inprompt("    Top edge pixel index: ",int)
-        trim[2] = Inprompt("  Right edge pixel index: ",int)
-        trim[3] = Inprompt(" Bottom edge pixel index: ",int)
-    else:
-        trim = 0
-    trunc = input("""
+        if 'y' in trim or 'Y' in trim or '1' in trim:
+            trim = [0,0,0,0]
+            trim[0] = Inprompt("   Left edge pixel index: ",int)
+            trim[1] = Inprompt("    Top edge pixel index: ",int)
+            trim[2] = Inprompt("  Right edge pixel index: ",int)
+            trim[3] = Inprompt(" Bottom edge pixel index: ",int)
+        else:
+            trim = 0
+        trunc = input("""
 Limit map output to single globe surface?
  Limited maps may have missing pixels on edges when reprojected a second time
  Unlimited maps may have odd noise on edges in some projections (outside of the usually cropped area)
  y/n: """)
-    if 'y' in trunc or 'Y' in trunc or '1' in trunc:
-        trunc = True
+        if 'y' in trunc or 'Y' in trunc or '1' in trunc:
+            trunc = True
+        else:
+            trunc = False
+
+        print("\nWorking...")
+
+        Main(file_in, file_out, proj_in, proj_out, lon_in, lat_in, rot_in, lon_out, lat_out, rot_out, hem_in=hem_in, hem_out=hem_out, trim=trim, trunc=trunc, interp=interp)
+
+        z = input("Press enter to close")
     else:
-        trunc = False
+        proj_help = """One of the following map projections:
+ 0: Equirectangular/Plate Caree (2:1 rectangle)
+ 1: Sinusoidal (2:1 sinusoid)
+ 2: Mollweide (2:1 ellipse)
+ 3: Hammer (2:1 ellipse)
+ 4: Aitoff (2: ellipse)
+ 5: Winkel Tripel (1.637:1 ovalish)
+ 6: Kavrayskiy VII (1.732:1 ovalish)
+ 7: Wagner VI (2:1 ovalish)
+ 8: Ortelius Oval (2:1 oval)
+ 9: Nicolosi Globular (1:1 hemisphere)
+10: Eckert IV (2:1 oval)
+11: Azimuthal Equidistant (1:1 circle)
+12: Orthographic (1:1 hemisphere)
+13: Stereographic (1:1 hemisphere)
+14: Lambert Azimuthal Equal-Area (1:1 circle)
+15: Mercator truncated to square (1:1 square)
+16: Gall Stereographic (1.301:1 rectangle)
+17: Miller Cylindrical (1.364:1 rectangle)"""
+        interp_help = """One of the following interpolations:
+ 0: None; may have artifacts in some projections, but requires no scipy install
+ 1: Nearest; copies nearest pixel
+ 2: Linear (blurry but most reliable)
+ 3: Cubic (very slow)
+ 4: PCHIP (even slower)
+ 5: Spline"""
 
-    print("""
-Working...""")
+        parser = ap.ArgumentParser(description="Projection Pasta\nFor Reprojection of maps between arbitrary aspects", 
+                                   epilog="Made 2023 by Amadea de Silva and Nikolai Hersfeldt",
+                                   formatter_class=ap.RawTextHelpFormatter)
 
-    Main(file_in, file_out, proj_in, proj_out, lon_in, lat_in, rot_in, lon_out, lat_out, rot_out, hem_in=hem_in, hem_out=hem_out, trim=trim, trunc=trunc, interp=interp)
+        # Input args
+        igrp = parser.add_argument_group(title="Input Options")
+        igrp.add_argument("file_in", metavar="FILE-IN", type=pl.Path, help="Path of the input image")
+        igrp.add_argument("proj_in", metavar="proj", type=int, help=proj_help)
+        igrp.add_argument("lat_in", metavar="lat", type=float, help="Center latitude of the input projection")
+        igrp.add_argument("lon_in", metavar="lon", type=float, help="Center longitude of the input projection")
+        igrp.add_argument("rot_in", metavar="rot", type=float, default=0, help="Optional clockwise rotation from north")
 
-    z = input("Press enter to close")
+        # Output args
+        ogrp = parser.add_argument_group(title="Output Options")
+        ogrp.add_argument("file_out", metavar="FILE-OUT", type=pl.Path, help="Path of the output image")
+        ogrp.add_argument("proj_out", metavar="proj", type=int, help=proj_help)
+        ogrp.add_argument("lat_out", metavar="lat", type=float, help="Center latitude of the output projection")
+        ogrp.add_argument("lon_out", metavar="lon", type=float, help="Center longitude of the output projection")
+        ogrp.add_argument("rot_out", metavar="rot", type=float, default=0, help="Optional clockwise rotation from north")
 
+        # Other
+        parser.add_argument("interp", metavar="INTERP", type=int, help=interp_help)
+        parser.add_argument("--trim", metavar="INT", type=int, nargs=4, default=0, help="Crop a portion of the output map pixels")
+        parser.add_argument("--trunc", action="store_true", help="Truncate output projection to single globe surface")
 
-
+        args = parser.parse_args(sys.argv[1:])
+        MainDeg(
+            str(args.file_in), str(args.file_out),
+            args.proj_in, args.proj_out,
+            args.lon_in, args.lat_in, args.rot_in,
+            args.lon_out, args.lat_out, args.rot_out,
+            hem_in=0, hem_out=0,
+            trim=args.trim, interp=args.interp
+        )
