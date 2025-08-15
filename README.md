@@ -124,6 +124,6 @@ Outstanding issues:
 ## Sources
 
 - Most projection formulae taken from Wikipedia
-- Some additional formulae (particular conic inverses) from ["Map Projections - A Working Manual" by John P. Snyder, 1987](https://kartoweb.itc.nl/geometrics/Publications/Map%20Projections%20-%20A%20Working%20manual%20-%20by%20J.P.%20Snyder.pdf)
-- General iterative inverse projection method used for Equal Earth, Winkel Tripel, Natural Earth, Nicolosi Globular, and Ortelius Oval from [Bildirici 2016, "An iterative approach for inverse transformation of map projections"](https://www.tandfonline.com/doi/full/10.1080/15230406.2016.1200492)
-- Multiquadric interpolation for Robinson from [Ipbuker 2013, "Numerical Evaluation of the Robinson Projection"](https://www.tandfonline.com/doi/abs/10.1559/1523040041649425)
+- Some additional formulae (particularly conic inverses) from ["Map Projections - A Working Manual"](https://kartoweb.itc.nl/geometrics/Publications/Map%20Projections%20-%20A%20Working%20manual%20-%20by%20J.P.%20Snyder.pdf)  by John P. Snyder, 1987
+- General iterative inverse projection method used for Equal Earth, Winkel Tripel, Natural Earth, Nicolosi Globular, and Ortelius Oval from Bildirici 2016, ["An iterative approach for inverse transformation of map projections"](https://www.tandfonline.com/doi/full/10.1080/15230406.2016.1200492)
+- Multiquadric interpolation for Robinson from Ipbuker 2013, ["Numerical Evaluation of the Robinson Projection"](https://www.tandfonline.com/doi/abs/10.1559/1523040041649425)
