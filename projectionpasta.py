@@ -4,7 +4,7 @@ import os
 import configparser
 import math as ma
 
-ver_num = "2.0.0"
+ver_num = "2.0.1"
 
 #Increases potential map size to 1 million x 1 million pixels, which is probably more than anyone's RAM could actually handle
 Image.MAX_IMAGE_PIXELS = 1e12
@@ -2689,7 +2689,7 @@ Made 2023 by Mads de Silva and Nikolai Hersfeldt
                         print('  0: Enter custom value')
                         for k in range(1,len(optkeys)):
                             print(f'  {k}: {optkeys[k]}')
-                        optchoose = Inprompt("  Choose option: ",int,[n for n in range(optkeys)])
+                        optchoose = Inprompt("  Choose option: ",int,[n for n in range(len(optkeys))])
                     if optchoose == 0:
                         numref = optlist[optkeys[0]]
                         if numref == 1:
