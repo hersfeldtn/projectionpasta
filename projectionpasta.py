@@ -4,7 +4,7 @@ import os
 import configparser
 import math as ma
 
-ver_num = "2.0.1"
+ver_num = "2.1.0"
 
 #Increases potential map size to 1 million x 1 million pixels, which is probably more than anyone's RAM could actually handle
 Image.MAX_IMAGE_PIXELS = 1e12
@@ -69,6 +69,7 @@ def_opts = {
     'avoid_seam': True,                 #use extra steps to avoid seams at edge of original map
     'tolerance': 1e-6,                  #tolerated maximum proportional error on iterative methods
     'max_iter': 20,                     #maximum iterations for iterative methods
+    'suppress_print': False,            #suppress all console outputs
 
     #Internal use; should only be used if accessing internal functions directly
     
@@ -79,20 +80,33 @@ def_opts = {
 
 }
 
+#Remapping functions for each projection
 
+#Lists and dictionaries of projection properties
+sections = {}           #Section headers, for organizing list of projections.
+proj_list = []          #projection names
+info_list = {}          #extra info for each projection when displayed in list
+coordsl = {}            #coords functions: determines (lon,lat) coordinates for a given (x,y) position on the map
+posl = {}               #pos functions: determines (x,y) position for given (lon,lat) coordinates
+visl = {}               #vis functions: determines if an (x,y) position on the output should be shown on truncated maps
+ratl = {}               #aspect ratio of map: can be a simple number or a function that returns a number given opts
+wrapl = {}              #wrap types (for map edge padding)
+syml = {}               #symmetry types, for saving time on redundant calculations
+aziml = []              #azimuthal projections
+conicl = []             #conic projections
+nonglobal = []          #projections that don't cover whole globe
+iter_coords = []        #projections with iterative coords functions
+iter_pos = []           #projections with iterative pos functions
+optlists = {}           #dictionary of dictionaries of additional options for specific projections
+optlists_global = {}    #option lists only shown for global version of azimuthal or conic projections
+equal_area = []         #list of equal-area projections for external reference
 
-#Remapping functions for each projection:
-#coords determines (lon,lat) coordinates for a given (x,y) position on the map
-#pos determines (x,y) position for given (lon,lat) coordinates
-#vis determines if an (x,y) position on the output should be shown on non-rectangular maps
-#pres determines if an (x,y) position is present on the input
-#typ incorporates extra information required for specific projection types
-#rat is the map width/height ratio
-#int determines type of interpolation
 #x and y have ranges of (-1, 1)
 #lon is (-pi,pi) or (-pi/2, pi/2) as appropriate
 #lat is (-pi/2, pi/2)
 #with (0,0) at the map center
+
+
 
 #First, some generic functions used for multiple projections
 
@@ -129,7 +143,7 @@ def der(lon,lat,t,f,opts):   #Approximate partial derivatives by the secant meth
     dylo = (y3-y4)/(2*t)
     return dxla,dxlo,dyla,dylo
 def Inv_coords(x,y,fpos,fcoords,vis,opts=def_opts): #General iterative inverse function from Bildirici 2016: https://doi.org/10.1080/15230406.2016.1200492
-    print("  (using iterative method, may take a bit)")
+    prin(opts,"  (using iterative method, may take a bit)")
     t = opts['tolerance']
     imax = opts['max_iter']
     lon,lat = fcoords(x,y,opts)
@@ -153,7 +167,7 @@ def Inv_coords(x,y,fpos,fcoords,vis,opts=def_opts): #General iterative inverse f
         lat = lat-dlat
         i += 1
         if i>imax:
-            print("  Reached maximum of "+str(imax)+" iterations without converging, outputting result")
+            prin(opts,"  Reached maximum of "+str(imax)+" iterations without converging, outputting result")
             break
     return lon,lat
 
@@ -174,24 +188,6 @@ def Circ_vis(x,y,lat=None,lon=None,opts=None):        #for circular or elliptica
 def Pill_vis(x,y,lat=None,lon=None,opts=None):        #2 semicircles flanking a square (at 2:1 aspect ratio)
     return np.where(np.abs(x)>1/2,Circ_vis(1-abs(x*2),y,opts),True)
 
-
-#Lists and dictionaries of projection properties
-sections = {}           #Section headers
-proj_list = []          #projection names
-info_list = {}          #extra info for each projection
-coordsl = {}            #coords functions (x,y to lon,lat)
-posl = {}               #pos functions  (lon,lat to x,y)
-visl = {}               #vis functions  (portion of map visible)
-ratl = {}               #aspect ratios
-wrapl = {}              #wrap types (for map edge padding)
-syml = {}               #symmetry types
-aziml = []              #azimuthal projections
-conicl = []             #conic projections
-nonglobal = []          #projections that don't cover whole globe
-iter_coords = []        #projections with iterative coords functions
-iter_pos = []           #projections with iterative pos functions
-optlists = {}           #dictionary of dictionaries of additional options for specific projections
-optlists_global = {}    #option lists only shown for global version of azimuthal or conic projections
 
 sections['Equirectangular'] = 'Cylindrical'
 
@@ -321,6 +317,7 @@ optlists['Cylindrical Equal-Area'] = {
     '50: Balthasart, 1.298:1': 50,
     '55.654: Tobler, 1:1': ma.degrees(ma.acos(ma.sqrt(1/ma.pi)))
 }
+equal_area.append('Cylindrical Equal-Area')
 
 
 sections['Sinusoidal'] = 'Pseudocylindrical/azimuthal Equal-Area'
@@ -347,7 +344,7 @@ visl['Sinusoidal'] = Sin_vis
 ratl['Sinusoidal'] = 2
 wrapl['Sinusoidal'] = 'xwrap'
 syml['Sinusoidal'] = 'sym4lat'
-
+equal_area.append('Sinusoidal')
 
 proj_list.append('Mollweide')
 info_list['Mollweide'] = '2:1 ellipse (pseudocylindrical); equal-area'
@@ -359,7 +356,7 @@ def Moll_coords(x,y,opts=None):
     lon = ma.pi*x/(np.cos(th))
     return lon,lat
 def Moll_pos(lon,lat,opts=def_opts):
-    print("  (using iterative method, may take a bit)")
+    prin(opts,"  (using iterative method, may take a bit)")
     t = opts['tolerance']
     imax= opts['max_iter']
     i = 1
@@ -370,8 +367,8 @@ def Moll_pos(lon,lat,opts=def_opts):
         err = np.amax(np.abs((2*th+np.sin(2*th))/(ma.pi*np.sin(lat))-1))
         i+=1
         if i>imax:
-            print("  Reached maximum of "+str(imax)+" iterations without converging, outputting result")
-            print(f"   max remaining error: {err}")
+            prin(opts,"  Reached maximum of "+str(imax)+" iterations without converging, outputting result")
+            prin(opts,f"   max remaining error: {err}")
             break
     x = lon*np.cos(th)/ma.pi
     y = np.sin(th)
@@ -383,7 +380,7 @@ ratl['Mollweide'] = 2
 wrapl['Mollweide'] = 'xwrap'
 syml['Mollweide'] = 'sym4lat'
 iter_pos.append('Mollweide')
-
+equal_area.append('Mollweide')
 
 proj_list.append('Hammer')
 info_list['Hammer'] = '2:1 ellipse (pseudoazimuthal); equal-area'
@@ -405,7 +402,7 @@ visl['Hammer'] = Circ_vis
 ratl['Hammer'] = 2
 wrapl['Hammer'] = 'xwrap'
 syml['Hammer'] = 'sym4'
-
+equal_area.append('Hammer')
 
 proj_list.append('Eckert IV')
 info_list['Eckert IV'] = '2:1 oval (pseudocylindrical); equal-area'
@@ -417,7 +414,7 @@ def Eckiv_coords(x,y,opts=None):
     lon = 2 * x * np.sqrt(4*ma.pi + ma.pi**2) / (2 * r * (1 + np.cos(th)))
     return lon,lat
 def Eckiv_pos(lon,lat,opts=def_opts):
-    print("  (using iterative method, may take a bit)")
+    prin(opts,"  (using iterative method, may take a bit)")
     t = opts['tolerance']
     imax= opts['max_iter']
     i = 1
@@ -428,8 +425,8 @@ def Eckiv_pos(lon,lat,opts=def_opts):
         err = np.amax(np.abs((th + np.sin(th)*np.cos(th) + 2*np.sin(th)) - ((2 + ma.pi/2) * np.sin(lat))))
         i+=1
         if i>imax:
-            print("  Reached maximum of "+str(imax)+" iterations without converging, outputting result")
-            print(f"   max remaining error: {err}")
+            prin(opts,"  Reached maximum of "+str(imax)+" iterations without converging, outputting result")
+            prin(opts,f"   max remaining error: {err}")
             break
     r = 1
     x = lon * (1 + np.cos(th)) / (2 * ma.pi)#(1 / np.sqrt(4*ma.pi + ma.pi**2)) * lon * (1 + np.cos(th)) *r 
@@ -442,13 +439,13 @@ ratl['Eckert IV'] = 2
 wrapl['Eckert IV'] = 'xwrap'
 syml['Eckert IV'] = 'sym4lat'
 iter_pos.append('Eckert IV')
-
+equal_area.append('Eckert IV')
 
 proj_list.append('Equal Earth')
 info_list['Equal Earth'] = '1.845:1 ovalish (pseudocylindrical); equal-area'
 
 def Eqear_coords(x,y,opts=def_opts):
-    return Inv_coords(x,y,Eqear_pos,Wag_coords,Def_vis,opts)
+    return Inv_coords(x,y,Eqear_pos,Wagvi_coords,Def_vis,opts)
 def Eqear_pos(lon,lat,opts=None):
     th = np.arcsin(np.sin(lat) * ma.sqrt(3)/2)
     x = lon * np.cos(th)
@@ -473,6 +470,11 @@ ratl['Equal Earth'] = Eqear_rat
 wrapl['Equal Earth'] = 'xwrap'
 syml['Equal Earth'] = 'sym4lat'
 iter_coords.append('Equal Earth')
+equal_area.append('Equal Earth')
+
+# Wagner formulas from https://www.boehmwanderkarten.de/kartographie/is_netze_wagner_123456789_inversions.html
+
+
 
 
 sections['Winkel Tripel'] = 'Pseudocylindrical/azimuthal Compromise'
@@ -509,7 +511,7 @@ info_list['Robinson'] = '1.972:1 ovalish (pseudocylindrical)'
 
 def Rob_coords(x,y,opts=None):  #Multiquadric interpolation from Ipbuker 2013 https://doi.org/10.1559/1523040041649425
     A_st = np.zeros_like(y)                     #note: there are a some seeming errors and ambiguities in the paper
-    B_st = abs(y) * 1.3523                      # where equations 22 and 23 says one should take the sum from j=1 to j=18 of a coefficient * abs(5*j - lat)
+    B_st = abs(y) * 1.3523                      # where equations 22 and 23 say one should take the sum from j=1 to j=18 of a coefficient * abs(5*j - lat)
     ca = np.asarray(Rob_A) * 0.8487             # it should be from j=0 to j=18, 5 degrees should be converted to radians and lat given in radians,
     cb = np.asarray(Rob_B) * 1.3523             # and lat also given as abs value (nested within the abs) and then resulting y converted back to negative as appropriate
     for j in range(19):                         # and similarly for inverse projection, abs(y) should be given and resulting lat converted back
@@ -575,20 +577,20 @@ syml['Robinson'] = 'sym4lat'
 proj_list.append('Wagner VI')
 info_list['Wagner VI'] = '2:1 ovalish (pseudocylindrical)'
 
-def Wag_coords(x,y,opts=None):
+def Wagvi_coords(x,y,opts=None):
     lat = y*ma.pi/2
     ph = np.arcsin(lat*ma.sqrt(3)/ma.pi)
     lon = x*ma.pi/np.cos(ph)
     return lon,lat
-def Wag_pos(lon,lat,opts=None):
+def Wagvi_pos(lon,lat,opts=None):
     y = lat*2/ma.pi
     x = lon/ma.pi*np.sqrt(1-3*(lat/ma.pi)**2)
     return x,y
-def Wag_vis(x,y,lon=None,lat=None,opts=None):
+def Wagvi_vis(x,y,lon=None,lat=None,opts=None):
     return np.where(abs(x) > np.sqrt(1-3*(y/2)**2),False,True)
-coordsl['Wagner VI'] = Wag_coords
-posl['Wagner VI'] = Wag_pos
-visl['Wagner VI'] = Wag_vis
+coordsl['Wagner VI'] = Wagvi_coords
+posl['Wagner VI'] = Wagvi_pos
+visl['Wagner VI'] = Wagvi_vis
 ratl['Wagner VI'] = 2
 wrapl['Wagner VI'] = 'xwrap'
 syml['Wagner VI'] = 'sym4lat'
@@ -597,9 +599,9 @@ syml['Wagner VI'] = 'sym4lat'
 proj_list.append('Kavrayskiy VII')
 info_list['Kavrayskiy VII'] = '1.732:1 ovalish (pseudocylindrical); stretched version of Wagner VI'
 
-coordsl['Kavrayskiy VII'] = Wag_coords
-posl['Kavrayskiy VII'] = Wag_pos
-visl['Kavrayskiy VII'] = Wag_vis
+coordsl['Kavrayskiy VII'] = Wagvi_coords
+posl['Kavrayskiy VII'] = Wagvi_pos
+visl['Kavrayskiy VII'] = Wagvi_vis
 ratl['Kavrayskiy VII'] = ma.sqrt(3)
 wrapl['Kavrayskiy VII'] = 'xwrap'
 syml['Kavrayskiy VII'] = 'sym4lat'
@@ -609,7 +611,7 @@ proj_list.append('Natural Earth')
 info_list['Natural Earth'] = '1.923:1 ovalish (pseudocylindrical)'
 
 def Natear_coords(x,y,opts=def_opts):
-    return Inv_coords(x,y,Natear_pos,Wag_coords,Def_vis,opts)
+    return Inv_coords(x,y,Natear_pos,Wagvi_coords,Def_vis,opts)
 def Natear_pos(lon,lat,opts=None):
     lat2 = lat**2
     lat10 = lat**10
@@ -634,15 +636,9 @@ wrapl['Natural Earth'] = 'xwrap'
 syml['Natural Earth'] = 'sym4lat'
 iter_coords.append('Natural Earth')
 
-
-
 proj_list.append('Aitoff')
 info_list['Aitoff'] = '2:1 ellipse (pseudoazimuthal)'
 
-#def Ait_guess(x,y,opts=None):  #Special routine for Ait_coords initial guess
-#    return np.where(Circ_vis(x,y,opts),Hammer_coords(x,y,opts),Wag_coords(x,y,opts))
-#def Ait_coords(x,y,opts=None):
-#    return Inv_coords(x,y,Ait_pos,Ait_guess,Circ_vis,opts)
 def Ait_coords(x,y,opts=None):
     rh = np.sqrt((x/2)**2+(y/2)**2)
     th = np.arctan2(x/2,-y/2)
@@ -660,6 +656,114 @@ ratl['Aitoff'] = 2
 wrapl['Aitoff'] = 'xwrap'
 syml['Aitoff'] = 'sym4'
 
+proj_list.append('Ortelius Oval')
+info_list['Ortelius Oval'] = '2:1 oval (pseudocylindrical)'
+
+def Ort_coords1(x,y,opts=def_opts):
+    lon,lat = Inv_coords(x,y,Ort_pos1,Apianii_coords,Circ_vis,opts)
+    lat = y*ma.pi/2
+    return lon,lat
+def Ort_coords2(x,y,opts=def_opts):
+    lon1,lat1 = Inv_coords(x,y,Ort_pos2,Apianii_coords,Circ_vis,opts)
+    lat = y*ma.pi/2
+    lon2 = np.abs(x)*ma.pi + ma.pi/2 - np.sqrt(ma.pi**2/4 - lat**2)
+    lon2 = np.where(x>0, lon2, -lon2)
+    lon = np.where(np.sqrt((x*2)**2+y**2)>1,lon2,lon1)
+    return lon,lat
+def Ort_pos1(lon,lat,opts=None):
+    y = lat*2/ma.pi
+    abslon = np.abs(lon)
+    F = (ma.pi**2/(4*abslon)+abslon)/2
+    x = abslon - F + np.sqrt(F**2 - (lat)**2)
+    x = np.sign(lon) * x/ma.pi 
+    return x,y
+def Ort_pos2(lon,lat,opts=None):
+    y = lat*2/ma.pi
+    abslon = np.abs(lon)
+    F = (ma.pi**2/(4*abslon)+abslon)/2
+    x = np.where(abslon>ma.pi/2,
+                 np.sqrt(ma.pi**2/4 - lat**2) + abslon - ma.pi/2,
+                 abslon - F + np.sqrt(F**2 - (lat)**2))
+    x = np.where(lon>0, x/ma.pi, -x/ma.pi)
+    return x,y
+def Ort_coords(x,y,opts=def_opts):
+    if Get_azim_type(opts) in ('hem', 'bihem'):
+        return Azim_coords(x,y,Ort_coords1,1/2,opts,xonly=True)
+    return Ort_coords2(x,y,opts)
+def Ort_pos(lon,lat,opts=def_opts):
+    if Get_azim_type(opts) in ('hem', 'bihem'):
+        return Azim_pos(lon,lat,Ort_pos1,1/2,opts,xonly=True)
+    return Ort_pos2(lon,lat,opts)
+def Ort_vis(x,y,lat=None,lon=None,opts=def_opts):
+    if Get_azim_type(opts) in ('bihem','hem'):
+        return Azim_vis(x,y,lat,lon,opts)
+    return Pill_vis(x,y,opts)
+def Ort_rat(opts=def_opts):
+    if Get_azim_type(opts) in ('hem'):
+        return 1
+    return 2
+coordsl['Ortelius Oval'] = Ort_coords
+posl['Ortelius Oval'] = Ort_pos
+visl['Ortelius Oval'] = Ort_vis
+ratl['Ortelius Oval'] = Ort_rat
+wrapl['Ortelius Oval'] = 'xwrap'
+syml['Ortelius Oval'] = 'sym4lat'
+aziml.append('Ortelius Oval')
+iter_coords.append('Ortelius Oval')
+
+
+proj_list.append('Apian I')
+info_list['Apian I'] = '2:1 ovalish (pseudocylindrical)'
+
+def Apiani_coords(x,y,opts=def_opts):
+    lon,lat = Ort_coords1(x,y,opts)
+    return lon, lat
+def Apiani_pos(lon,lat,opts=None):
+    x,y = Ort_pos1(lon,lat)
+    return x, y
+def Apiani_vis(x,y,lat=None,lon=None,opts=None):
+    F = ma.pi/8 + ma.pi/2
+    xmax = ma.pi - F + np.sqrt(F**2 - (y*ma.pi/2)**2)
+    xmax = xmax/ma.pi
+    return np.where(np.abs(x) > xmax, False, True)
+coordsl['Apian I'] = Apiani_coords
+posl['Apian I'] = Apiani_pos
+visl['Apian I'] = Apiani_vis
+ratl['Apian I'] = 2
+wrapl['Apian I'] = 'xwrap'
+syml['Apian I'] = 'sym4lat'
+iter_coords.append('Apian I')
+
+
+proj_list.append('Apian II')
+info_list['Apian II'] = '2:1 ellipse (pseudocylindrical)'
+
+def Apianii_coords1(x,y,opts=None):
+    lat = y*ma.pi/2
+    lon = x* ((ma.pi**2)/2) / (np.sqrt(ma.pi**2/4 - np.square(lat)))
+    return lon,lat
+def Apianii_pos1(lon,lat,opts=None):
+    y = 2*lat/ma.pi
+    x = lon*(2/(ma.pi**2)) * np.sqrt(ma.pi**2/4 - np.square(lat))
+    return x,y
+def Apianii_coords(x,y,opts=def_opts):
+    if Get_azim_type(opts) in ('hem', 'bihem'):
+        return Azim_coords(x,y,Apianii_coords1,1/2,opts,xonly=True)
+    return Apianii_coords1(x,y,opts)
+def Apianii_pos(lon,lat,opts=def_opts):
+    if Get_azim_type(opts) in ('hem', 'bihem'):
+        return Azim_pos(lon,lat,Apianii_pos1,1/2,opts,xonly=True)
+    return Apianii_pos1(lon,lat,opts)
+def Apianii_vis(x,y,lat=None,lon=None,opts=def_opts):
+    return Azim_vis(x,y,lat,lon,opts)    #doing it this way because of awkward script ordering
+coordsl['Apian II'] = Apianii_coords
+posl['Apian II'] = Apianii_pos
+visl['Apian II'] = Apianii_vis
+ratl['Apian II'] = Ort_rat
+wrapl['Apian II'] = 'xwrap'
+syml['Apian II'] = 'sym4lat'
+aziml.append('Apian II')
+
 
 sections['Azimuthal Equidistant'] = 'Azimuthal'
 
@@ -674,43 +778,47 @@ def Get_azim_type(opts=def_opts, no_glob=False):     #determine appropriate azim
     if hem == 'global_if' and no_glob:
         hem = 'bihem'
     elif hem == 'global' and no_glob:
-        print(f'    Warning: global type selected for {"input" if opts["in"] else "output"} projection not possible; using bihemisphere instead')
+        prin(opts,f'    Warning: global type selected for {"input" if opts["in"] else "output"} projection not possible; using bihemisphere instead')
         hem = 'bihem'
     return hem
 
-def Onehem_coords(x,y,f,s,opts=def_opts):
+def Onehem_coords(x,y,f,s,opts=def_opts,xonly=False):
+    if xonly:
+        return f(x*s,y,opts)
     return f(x*s,y*s,opts)
-def Bihem_coords(x,y,f,s,opts=def_opts):
-    lon,lat=Onehem_coords(np.where(x>0,2*x-1,2*x+1),y,f,s,opts)
+def Bihem_coords(x,y,f,s,opts=def_opts,xonly=False):
+    lon,lat=Onehem_coords(np.where(x>0,2*x-1,2*x+1),y,f,s,opts,xonly)
     lon = np.where(x>0,lon+ma.pi/2,lon-ma.pi/2)
     return lon,lat
-def Azim_coords(x,y,f,s,opts=def_opts,no_glob=False):
+def Azim_coords(x,y,f,s,opts=def_opts,no_glob=False,xonly=False):
     hem = Get_azim_type(opts,no_glob)
     if hem in ('global', 'global_if'):
         return f(x,y,opts)
     elif hem == 'hem':
-        return Onehem_coords(x,y,f,s,opts)
+        return Onehem_coords(x,y,f,s,opts,xonly)
     elif hem == 'bihem':
-        return Bihem_coords(x,y,f,s,opts)
+        return Bihem_coords(x,y,f,s,opts,xonly)
     else:
         raise Exception('Error: invalid azim type')
 
-def Onehem_pos(lon,lat,f,s,opts=def_opts):
+def Onehem_pos(lon,lat,f,s,opts=def_opts,xonly=False):
     x,y = f(lon,lat,opts)
+    if xonly:
+        return x/s, y
     return x/s, y/s
-def Bihem_pos(lon,lat,f,s,opts=def_opts):
+def Bihem_pos(lon,lat,f,s,opts=def_opts,xonly=False):
     lon1 = np.where(lon>0,lon,lon+ma.pi)-ma.pi/2
-    x,y = Onehem_pos(lon1,lat,f,s,opts)
+    x,y = Onehem_pos(lon1,lat,f,s,opts,xonly)
     x /= 2
     return np.where(lon>0,x+0.5,x-0.5),y
-def Azim_pos(lon,lat,f,s,opts=def_opts,no_glob=False):
+def Azim_pos(lon,lat,f,s,opts=def_opts,no_glob=False,xonly=False):
     hem = Get_azim_type(opts,no_glob)
     if hem in ('global', 'global_if'):
         return f(lon,lat,opts)
     elif hem == 'hem':
-        return Onehem_pos(lon,lat,f,s,opts)
+        return Onehem_pos(lon,lat,f,s,opts,xonly)
     elif hem == 'bihem':
-        return Bihem_pos(lon,lat,f,s,opts)
+        return Bihem_pos(lon,lat,f,s,opts,xonly)
     else:
         raise Exception('Error: invalid azim type')
     
@@ -788,7 +896,7 @@ ratl['Lambert Azimuthal Equal-Area'] = Azim_rat
 wrapl['Lambert Azimuthal Equal-Area'] = 'xwrap'
 syml['Lambert Azimuthal Equal-Area'] = 'sym4'
 aziml.append('Lambert Azimuthal Equal-Area')
-
+equal_area.append('Lambert Azimuthal Equal-Area')
 
 proj_list.append('Stereographic')
 info_list['Stereographic'] = '1:1 circle (azimuthal); conformal, preserves circles; non-global only'
@@ -1078,7 +1186,7 @@ conicl.append('Albers Equal-Area Conic')
 optlists['Albers Equal-Area Conic'] = {
     'Select reference latitudes of best shape (-90-90 degrees from equator, mean must be positive)': 2
 }
-
+equal_area.append('Albers Equal-Area Conic')
 
 proj_list.append('Lambert Conformal Conic')
 info_list['Lambert Conformal Conic'] = 'partial circular arc (conic); conformal'
@@ -1184,7 +1292,7 @@ optlists_global['Lambert Conformal Conic'] = {
 }
 
 
-sections['Nicolosi Globular'] = 'Miscellaneous / Special-Use'
+sections['Nicolosi Globular'] = 'Miscellaneous'
 
 
 proj_list.append('Nicolosi Globular')
@@ -1196,7 +1304,7 @@ info_list['Nicolosi Globular'] = '1:1 circle (polyconic); hemispheres only'
 # '1.354:1 clamshell for when I get global working
 
 def Nic_coords1(x,y,opts=def_opts):     #wip better Nicolosi inverse that should for global maps, but seems to have some sign issues
-    print("  (using iterative method, may take a bit)")
+    prin(opts,"  (using iterative method, may take a bit)")
     t = opts['tolerance']
     imax = opts['max_iter']#*100
     hem = Get_azim_type(opts)
@@ -1210,7 +1318,7 @@ def Nic_coords1(x,y,opts=def_opts):     #wip better Nicolosi inverse that should
     i = 1
     lat = y1 * ma.pi/2
     while err > t:
-        #print(np.max(lat))
+        #prin(opts,np.max(lat))
         sinla = np.sin(lat)
         cosla = np.sin(lat)
         lat2 = lat**2
@@ -1223,8 +1331,8 @@ def Nic_coords1(x,y,opts=def_opts):     #wip better Nicolosi inverse that should
         err = np.max(np.abs(adjust))
         i+=1
         if i>imax:
-            print("  Reached maximum of "+str(imax)+" iterations without converging, outputting result")
-            print(f"   max remaining error: {err}")
+            prin(opts,"  Reached maximum of "+str(imax)+" iterations without converging, outputting result")
+            prin(opts,f"   max remaining error: {err}")
             break
     #lat = y * ma.pi/2
     #lat *= np.sign(y)
@@ -1341,62 +1449,6 @@ nonglobal.append('Nicolosi Globular')
 iter_coords.append('Nicolosi Globular')
 
 
-proj_list.append('Ortelius Oval')
-info_list['Ortelius Oval'] = '2:1 oval (pseudocylindrical)'
-
-def Ort_coords1(x,y,opts=def_opts):
-    lon,lat = Inv_coords(x,y,Ort_pos1,Hammer_coords,Circ_vis,opts)
-    lat = y*ma.pi/2
-    return lon,lat
-def Ort_coords2(x,y,opts=def_opts):
-    lon1,lat1 = Inv_coords(x,y,Ort_pos2,Hammer_coords,Circ_vis,opts)
-    lat = y*ma.pi/2
-    lon2 = np.abs(x)*ma.pi + ma.pi/2 - np.sqrt(ma.pi**2/4 - lat**2)
-    lon2 = np.where(x>0, lon2, -lon2)
-    lon = np.where(np.sqrt((x*2)**2+y**2)>1,lon2,lon1)
-    return lon,lat
-def Ort_pos1(lon,lat,opts=None):
-    y = lat*2/ma.pi
-    abslon = np.abs(lon)
-    F = (ma.pi**2/(4*abslon)+abslon)/2
-    x = abslon - F + np.sqrt(F**2 - (y*ma.pi/2)**2)
-    x = 2 * np.sign(lon) * x/ma.pi 
-    return x,y
-def Ort_pos2(lon,lat,opts=None):
-    y = lat*2/ma.pi
-    abslon = np.abs(lon)
-    F = (ma.pi**2/(4*abslon)+abslon)/2
-    x = np.where(abslon>ma.pi/2,
-                 np.sqrt(ma.pi**2/4 - lat**2) + abslon - ma.pi/2,
-                 abslon - F + np.sqrt(F**2 - (y*ma.pi/2)**2))
-    x = np.where(lon>0, x/ma.pi, -x/ma.pi)
-    return x,y
-def Ort_coords(x,y,opts=def_opts):
-    if Get_azim_type(opts) in ('hem', 'bihem'):
-        return Azim_coords(x,y,Ort_coords1,1,opts)
-    return Ort_coords2(x,y,opts)
-def Ort_pos(lon,lat,opts=def_opts):
-    if Get_azim_type(opts) in ('hem', 'bihem'):
-        return Azim_pos(lon,lat,Ort_pos1,1,opts)
-    return Ort_pos2(lon,lat,opts)
-def Ort_vis(x,y,lat=None,lon=None,opts=def_opts):
-    if Get_azim_type(opts) in ('bihem','hem'):
-        return Azim_vis(x,y,lat,lon,opts)
-    return Pill_vis(x,y,opts)
-def Ort_rat(opts=def_opts):
-    if Get_azim_type(opts) in ('hem'):
-        return 1
-    return 2
-coordsl['Ortelius Oval'] = Ort_coords
-posl['Ortelius Oval'] = Ort_pos
-visl['Ortelius Oval'] = Ort_vis
-ratl['Ortelius Oval'] = Ort_rat
-wrapl['Ortelius Oval'] = 'xwrap'
-syml['Ortelius Oval'] = 'sym4lat'
-aziml.append('Ortelius Oval')
-iter_coords.append('Ortelius Oval')
-
-
 proj_list.append('Pseudostereographic')
 info_list['Pseudostereographic'] = '2:1 ellipse (pseudoazimuthal)'
 
@@ -1429,9 +1481,11 @@ wrapl['Pseudoorthographic'] = 'xwrap'
 syml['Pseudoorthographic'] = 'sym4'
 
 
+sections['Pseudonicolosi'] = 'Pasta experiments'
+
 # Experimental stuff I might add into the official list later:
 
-#proj_list.append('Pseudonicolosi')
+proj_list.append('Pseudonicolosi')
 info_list['Pseudonicolosi'] = '2:1 ellipse (polyconic?)'
 
 def Psnic_coords(x,y,opts=def_opts):
@@ -1563,6 +1617,12 @@ for p in proj_list:
     if p not in syml:
         syml[p] = 'none'
 
+#alternate print function allowing for suppression of print
+def prin(opts=def_opts,f=''):
+    if opts['suppress_print']:
+        return
+    print(f)
+    return
 
     
 
@@ -1660,8 +1720,8 @@ def sym_slice(x,y, proj, proj_prev=None):
         if symproj == 'sym4lat' and syml[proj_prev] != 'sym4lat':
             symproj = 'sym4'
         if symproj == 'sym4' and syml[proj_prev] not in ('sym4', 'sym4lat'):
-            symproj = 'sym2'
-        if symproj == 'sym2' and syml[proj_prev] not in ('sym2', 'sym4', 'sym4lat'):
+            symproj = 'symx'
+        if symproj == 'symx' and syml[proj_prev] not in ('symx', 'sym4', 'sym4lat'):
             symproj = 'none'
     if symproj in ('symx', 'sym4', 'sym4lat'):
         lenx = x.shape[1]
@@ -1691,8 +1751,8 @@ def sym_join(x,y,proj,lenx,leny,proj_prev=None):
         if symproj == 'sym4lat' and syml[proj_prev] != 'sym4lat':
             symproj = 'sym4'
         if symproj == 'sym4' and syml[proj_prev] not in ('sym4', 'sym4lat'):
-            symproj = 'sym2'
-        if symproj == 'sym2' and syml[proj_prev] not in ('sym2', 'sym4', 'sym4lat'):
+            symproj = 'symx'
+        if symproj == 'symx' and syml[proj_prev] not in ('symx', 'sym4', 'sym4lat'):
             symproj = 'none'
 
     if symproj in ('symx','sym4','sym4lat'):
@@ -1766,14 +1826,14 @@ def Quickvis(proj,x,y,lon=None,lat=None,opts=def_opts,get_far=False):
 def Find_index(x1, y1, proj1=0, proj2=0, aspect1=(0,0,0), aspect2=(0,0,0), opts=def_opts, deg=True, get_lon=False):
     proj1, proj2, opts, aspect1, aspect2 = Prep_pars(proj1, proj2, opts, aspect1, aspect2, deg)
     if opts['proj_direction'] == 'forward':
-        print(" Working forwards from input to output projection")
+        prin(opts," Working forwards from input to output projection")
         opts['in'] = True
     else:
-        print(" Working backwards from output to input projection")
+        prin(opts," Working backwards from output to input projection")
         opts['in'] = False
     coords = coordsl[proj1]
     pos = posl[proj2]
-    print(f"  Determining lat/lon from {proj1} map...")
+    prin(opts,f"  Determining lat/lon from {proj1} map...")
     if opts['use_sym']:
         x2, y2, lenx, leny = sym_slice(x1,y1,proj1)
     else:
@@ -1785,15 +1845,15 @@ def Find_index(x1, y1, proj1=0, proj2=0, aspect1=(0,0,0), aspect2=(0,0,0), opts=
     lon2 = np.copy(lon1)
     lat2 = np.copy(lat1)
     if np.max(np.abs(aspect1)) > 0:
-        print(f"  Rotating from {'input' if opts['in'] else 'output'} orientation of {np.degrees(aspect1)}...")
+        prin(opts,f"  Rotating from {'input' if opts['in'] else 'output'} orientation of {np.degrees(aspect1)}...")
         lon2, lat2 = Rotate_from(lon2, lat2, aspect1)
     opts['in'] = not opts['in']
     lon3 = np.copy(lon2)
     lat3 = np.copy(lat2)
     if np.max(np.abs(aspect2)) > 0:
-        print(f"  Rotating to {'input' if opts['in'] else 'output'} orientation of {np.degrees(aspect2)}...")
+        prin(opts,f"  Rotating to {'input' if opts['in'] else 'output'} orientation of {np.degrees(aspect2)}...")
         lon3, lat3 = Rotate_to(lon3, lat3, aspect2)
-    print(f"  Determining corresponding position on {proj2} map...")
+    prin(opts,f"  Determining corresponding position on {proj2} map...")
     lon4 = np.copy(lon3)
     lat4 = np.copy(lat3)
     lon4 = np.remainder(lon4 + ma.pi, 2*ma.pi) - ma.pi      #longitude loops
@@ -1802,9 +1862,20 @@ def Find_index(x1, y1, proj1=0, proj2=0, aspect1=(0,0,0), aspect2=(0,0,0), opts=
     x2, y2 = pos(lon4,lat4,opts)
     if opts['use_sym'] and np.max(np.abs(aspect1)) == 0 and np.max(np.abs(aspect2)) == 0:
         x2, y2 = sym_join(x2,y2,proj2,lenx,leny,proj1)
+    index = dict(
+        x2=x2,
+        y2=y2
+    )
     if get_lon:
-        return x2, y2, lon1, lat1, lon2, lat2, lon3, lat3
-    return x2, y2   
+        index.update(dict(
+            lon1=lon1,
+            lat1=lat1,
+            lon2=lon2,
+            lat2=lat2,
+            lon3=lon3,
+            lat3=lat3
+        ))
+    return index
 
 
 #Control functions
@@ -1857,24 +1928,29 @@ def Load_options(cfg_file):
 #get options list, with combination of input and default options
 def Get_opts(opts, def_opts=def_opts):
     if opts is None:
-        opts = def_opts
+        opts = def_opts.copy()
     else:
+        opts = opts.copy()  #prevents issues with sequential projections
         try:
             if opts['skip_update']:
                 return opts
         except:
             pass
-    opts_out = def_opts
+    opts_out = def_opts.copy()
     config = 'projpasta_options.cfg'
     if def_opts['alt_config'] is not None:
         config = def_opts['alt_config']
-    if def_opts['alt_config'] is not None:
-        config = opts['alt_config']
+    if 'alt_config' in opts:
+        if opts['alt_config'] is not None:
+            config = opts['alt_config']
+    ch = False
     if os.path.exists(config):
-        print(f'Loading options from {config}...')
         opts_out.update(Load_options(config))
-    opts_out.update(opts)
+        ch = True
     opts['skip_update'] = True
+    opts_out.update(opts)
+    if ch:
+        prin(opts_out,f'Loading options from {config}...')
 
     return opts_out
 
@@ -2090,8 +2166,8 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
             opts['crop_out'] = None
         else:
             opts['use_sym'] = False
-            print('   Cropping output area;')
-            print(f'    For future use of is_crop_in use ({crop[0]},{crop[1]},{crop[2]},{crop[3]},{shape_out[1]},{shape_out[0]})')
+            prin(opts,'   Cropping output area;')
+            prin(opts,f'    For future use of is_crop_in use ({crop[0]},{crop[1]},{crop[2]},{crop[3]},{shape_out[1]},{shape_out[0]})')
             data_out = data_out[crop[2]:crop[3],crop[0]:crop[1]]
             x_out = x_out[crop[0]:crop[1]]
             y_out = y_out[crop[2]:crop[3]]
@@ -2106,15 +2182,22 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
         if index is None:
             index = {}
         try:
-            x_ind = index['x_ind']
-            y_ind = index['y_ind']
+            x_ind = index['x2']
+            lon_out = index['lon1']
         except:
-            x_ind, y_ind, lon_out, lat_out, lon_tru, lat_tru, lon_in, lat_in = Find_index(x_out, y_out, proj_out, proj_in, aspect_out, aspect_in, opts, deg, get_lon=True)
-            index['x_ind'] = x_ind
-            index['y_ind'] = y_ind
-        
+            index = Find_index(x_out, y_out, proj_out, proj_in, aspect_out, aspect_in, opts, deg, get_lon=True)
+            x_ind = index['x2']
+            lon_out = index['lon1']
+        y_ind = index['y2']
+        lat_out = index['lat1']
+        lon_tru = index['lon2']
+        lat_tru = index['lat2']
+        lon_in = index['lon3']
+        lat_in = index['lat3']
+
+
         if opts['avoid_seam'] and opts['truncate_in']:
-            print('  Padding input map to avoid seams...')
+            prin(opts,'  Padding input map to avoid seams...')
             ptype = wrapl[proj_in]
             try:
                 vis_in = index['vis_in']
@@ -2132,13 +2215,13 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
                 data_in = data_in1
 
         if opts['interp_type'] == 'none':
-            print('  Copying data from nearest input pixels...')
+            prin(opts,'  Copying data from nearest input pixels...')
             x_ind1 = np.clip(np.rint((x_ind+1)/2 * (data_in.shape[1]) - 0.5 + round((data_in.shape[1] - shape_in[1])/2)),0,data_in.shape[1]-1)
             y_ind1 = np.clip(np.rint((1-y_ind)/2 * (data_in.shape[0]) - 0.5 + round((data_in.shape[0] - shape_in[0])/2)),0,data_in.shape[0]-1)
             data_out = data_in[y_ind1.astype(np.int64),x_ind1.astype(np.int64)]
         
         else:
-            print('  Interpolating data from input map...')
+            prin(opts,'  Interpolating data from input map...')
             from scipy.interpolate import interpn
             points = (y_in,x_in)
             xi = np.stack((y_ind, x_ind), -1)
@@ -2148,11 +2231,11 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
             else:
                 data_out[:] = interpn(points, data_in.astype(float), xi, method=opts['interp_type'], bounds_error=False, fill_value=None).astype(data_in.dtype)
         
-        print(' Projection complete')
+        prin(opts,' Projection complete')
 
         #add graticules
         if opts['graticules'] is not None:
-            print('  Adding graticules...')
+            prin(opts,'  Adding graticules...')
             try:
                 grat = index['grat']
             except:
@@ -2184,10 +2267,10 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
                         gr = [ma.radians(g) for g in gr]
                     except:
                         if n == 0:
-                            max = 180
+                            gmax = 180
                         else:
-                            max = 90
-                        gr = np.arange(-max, max, gr)
+                            gmax = 90
+                        gr = np.arange(-gmax, gmax, gr)
                         gr = gr.tolist()
                         if opts['truncate_out'] or wrapl[proj_out] == 'rect':   #various procedures to avoid graticule on edge of map
                             to_remove = []
@@ -2200,12 +2283,12 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
                                 if (n==0 and abs(aspect_out[1]) == 90 and
                                     (opts['graticules'] == 'true' or
                                     (opts['graticules'] == 'in' and abs(aspect_in[1]) == 90))):
-                                    to_remove.append(-max)
+                                    to_remove.append(-gmax)
                             elif (opts['graticules'] == 'out' or 
                                 (np.max(np.abs(aspect_out)) == 0 and
                                 (opts['graticules'] == 'true' or
                                 (opts['graticules'] == 'in' and np.max(np.abs(aspect_in)) == 0)))):
-                                to_remove.append(-max)
+                                to_remove.append(-gmax)
                                 if ((n == 0 and proj_out in aziml and hem == 'bihem') or
                                     (n == 1 and proj_out in conicl and hem in ('hem','bihem'))):
                                     to_remove.append(0)
@@ -2223,7 +2306,7 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
                                                 to_remove.append((aspect_out[0] + 90) % 360 - 180)
                                                 to_remove.append((aspect_out[0] + 270) % 360 - 180)
                                     else:
-                                        to_remove.append(-max)
+                                        to_remove.append(-gmax)
                                         if proj_out in conicl and hem in ('hem','bihem'):
                                             to_remove.append(0)
                                 elif opts['graticules'] == 'in' and np.max(np.abs(aspect_in[1:2])) == 0:
@@ -2238,7 +2321,7 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
                                                 to_remove.append((diff + 90) % 360 - 180)
                                                 to_remove.append((diff + 270) % 360 - 180)
                                     else:
-                                        to_remove.append(-max)
+                                        to_remove.append(-gmax)
                                         if proj_out in conicl and hem in ('hem','bihem'):
                                             to_remove.append(0)
                             for r in to_remove:
@@ -2269,7 +2352,7 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
             (opts['crop_coords_true'] is not None) |
             (opts['crop_coords_in'] is not None) |
             (opts['crop_coords_out'] is not None)):
-            print('  Trimming visible map area...')
+            prin(opts,'  Trimming visible map area...')
 
         try:
             vis_all = index['vis_all']
@@ -2382,8 +2465,8 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
                 y_maxr = y_max
                 x_minr = x_min
                 x_maxr = x_max
-            print(f'   Cropping to visible area')
-            print(f'    For future use of is_crop_in use ({x_minr},{x_maxr},{y_minr},{y_maxr},{shape_out[1]},{shape_out[0]})')
+            prin(opts,f'   Cropping to visible area')
+            prin(opts,f'    For future use of is_crop_in use ({x_minr},{x_maxr},{y_minr},{y_maxr},{shape_out[1]},{shape_out[0]})')
             data_out = data_out[y_min:y_max,x_min:x_max]
 
 
@@ -2401,12 +2484,18 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
         if index is None:
             index = {}
         try:
-            x_ind = index['x_ind']
-            y_ind = index['y_ind']
+            x_ind = index['x2']
+            lon_in = index['lon1']
         except:
-            x_ind, y_ind, lon_in, lat_in, lon_tru, lat_tru, lon_out, lat_out = Find_index(x_in, y_in, proj_in, proj_out, aspect_in, aspect_out, opts, deg, get_lon=True)
-            index['x_ind'] = x_ind
-            index['y_ind'] = y_ind
+            index = Find_index(x_in, y_in, proj_in, proj_out, aspect_in, aspect_out, opts, deg, get_lon=True)
+            x_ind = index['x2']
+            lon_in = index['lon1']
+        y_ind = index['y2']
+        lat_in = index['lat1']
+        lon_tru = index['lon2']
+        lat_tru = index['lat2']
+        lon_out = index['lon3']
+        lat_out = index['lat3']
         try:
             vis_in = index['vis_in']
         except:
@@ -2492,7 +2581,7 @@ def Proj_Array(data_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,
     #g = Image.fromarray(grat)#.astype(np.uint8))
     #g.save('grat.png')
 
-    print(' Operation complete')
+    prin(opts,' Operation complete')
     
     if get_index:
         return data_out, index
@@ -2507,25 +2596,45 @@ def Proj_Image(file_in, file_out='projp_out.png', proj_in=0, proj_out=0, aspect_
 
 
     map_in = Image.open(file_in)
-    if map_in.mode == 'P' and opts['graticules'] != True:   #convert RGB to allow overlaying graticules
+    if map_in.mode == '1':
+        map_in = map_in.convert('L')
+    if map_in.mode == 'P':# and opts['graticules'] != True:   #convert RGB to allow overlaying graticules
         map_in = map_in.convert('RGB')
     data_in = np.asarray(map_in)
+    dintype = data_in.dtype
 
-    data_out = Proj_Array(data_in, proj_in, proj_out, aspect_in, aspect_out, opts,
+    if get_index:
+        data_out, index = Proj_Array(data_in, proj_in, proj_out, aspect_in, aspect_out, opts,
                           deg=deg, index=index, get_index=get_index)
-    print('  Saving image...')
+    else:
+        data_out = Proj_Array(data_in, proj_in, proj_out, aspect_in, aspect_out, opts,
+                          deg=deg, index=index, get_index=get_index)
 
-    map_out = Image.fromarray(data_out, mode=map_in.mode)
-    if map_in.mode == "P":
-        map_out.putpalette(map_in.getpalette())
+    prin(opts,'  Saving image...')
+
+
+    map_out = Image.fromarray(data_out.astype(dintype))#, mode=map_in.mode)
+    #if map_in.mode == "P":
+    #    map_out.putpalette(map_in.getpalette())
     map_out.save(file_out)
-    print(' Map saved to '+file_out)
+    prin(opts,' Map saved to '+file_out)
 
     if get_index:
         return index
     return
 
 
+#project lists or arrays of points without treating them as full map arrays
+def Proj_Points(x_in, y_in, proj_in=0, proj_out=0, aspect_in=(0,0,0), aspect_out=(0,0,0), opts=def_opts,
+               deg=True):
+    proj_in, proj_out, opts = Prep_pars(proj_in, proj_out, opts)
+    x_in = np.asarray(x_in)
+    y_in = np.asarray(y_in)
+    opts['use_sym'] = False
+    outdat = Find_index(x_in,y_in,proj_in,proj_out,aspect_in,aspect_out,opts,deg)
+    x_out = outdat['x2']
+    y_out = outdat['y2']
+    return x_out, y_out
 
 
 def Globe_gif(file_in, file_out='globe.gif', proj_in=0, init_aspect=(0,0,0), frames=36, duration=100, loop=0, prograde=True, opts=def_opts, deg=True):
@@ -2540,7 +2649,7 @@ def Globe_gif(file_in, file_out='globe.gif', proj_in=0, init_aspect=(0,0,0), fra
     aspect_out = list(init_aspect)
     opts['azim_type_out'] = 'hem'
     for f in range(frames):
-        print(f'Frame {f}')
+        prin(opts,f'Frame {f}')
         dat = Proj_Array(data_in, proj_in, proj_out, (0,0,0), aspect_out, opts, deg)
         aspect_out[0] = aspect_out[0] + lon_step
         im = Image.fromarray(dat, mode=map_in.mode)
