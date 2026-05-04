@@ -35,6 +35,9 @@ The following projections are currently supported:
 - Kavrayskiy VII
 - Natural Earth
 - Aitoff
+- Ortelius Oval
+- Apian I
+- Apian II
 - Azimuthal Equidistant
 - Lambert Azimuthal Equal-Area
 - Stereographic
@@ -43,9 +46,9 @@ The following projections are currently supported:
 - Albers Equal-Area Conic
 - Lambert Conformal Conic
 - Nicolosi Globular
-- Ortelius Oval
 - Pseudostereographic
 - Pseudoorthographic
+- Pseudonicolosi
 
 If there's a projection you really need for something you can raise an issue and I can look into it (check the list of planned projections below).
 
@@ -91,7 +94,9 @@ Functions in the python script can also be run directly. 3 main functions are in
   - opts and deg as above
   - proj1, proj2, aspect1, and aspect2 like above, projecting from 1 to 2, though note that usual "backwards" projection actuall projects from output map to input map (to find the corresponding input position for each output pixel)
   - x1, y1: the x and y inputs, with can be single numbers, lists, or arrays, but must be ordered such that each pair of values describes one point on the map
-  - get_lon: in addition to x and y outputs, return lon and lat coordinates for these points for, in order, map 1 treated as normal aspect, true coordinates based on aspect1, and map 2 treated as normal aspect
+  - get_lon: in addition to x and y outputs, return lon and lat coordinates for these points for map 1 treated as normal aspect, true coordinates based on aspect1, and map 2 treated as normal aspect
+- Proj_Points is essentially a slightly friendlier wrapper on Find_index, taking x and y points, lists, or arrays (in that same -1 to 1 range) and projecting them to the output map, returning x and y arrays
+  - proj_in, proj_out, aspect_in, aspect_out, opts, and deg as above
 
 There's also an addition Globe_gif function to produce a rotating globe .gif image using the Orthographic projaction, with these parameters:
   - file_in, file_out, proj_in, opts, deg as above
@@ -112,7 +117,7 @@ Outstanding issues:
  - Map gores
  - tkinter GUI
  - output graticules only
- - anything that might speed up calculations a bit
+ - make tissots indicatrices?
  - New projections:
    - Peirce Quincuncial
    - 2-point equidistant
